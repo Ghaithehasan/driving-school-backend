@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: driving_school_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: driving_school_user
+      POSTGRES_PASSWORD: driving_school_password
+      POSTGRES_DB: driving_school_db
+      TZ: Asia/Damascus
+    ports:
+      - "5432:5432"
+    volumes:
+      - driving_school_pgdata:/var/lib/postgresql/data
+    networks:
+      - driving_school_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U driving_school_user -d driving_school_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: driving_school_pgadmin
+    restart: unless-stopped
+    user: "0"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@drivingschool.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+      PGADMIN_LISTEN_ADDRESS: 0.0.0.0
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "5050:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - driving_school_network
+    volumes:
+      - driving_school_pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  driving_school_pgdata:
+  driving_school_pgadmin_data:
+
+networks:
+  driving_school_network:
+    driver: bridge
