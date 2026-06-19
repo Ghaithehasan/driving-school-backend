@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: driving_school_db
       TZ: Asia/Damascus
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - driving_school_pgdata:/var/lib/postgresql/data
     networks:
