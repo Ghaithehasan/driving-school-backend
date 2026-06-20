@@ -11,10 +11,10 @@ import { Booking } from './booking.entity';
 @Entity('booking_cancellations')
 export class BookingCancellation {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'cancellation_party', type: 'enum', enum: CancellationParty })
-  cancellationParty: CancellationParty;
+  cancellationParty!: CancellationParty;
 
   @Column({
     name: 'cancellation_reason',
@@ -22,12 +22,12 @@ export class BookingCancellation {
     length: 255,
     nullable: true,
   })
-  cancellationReason: string | null;
+  cancellationReason!: string | null;
 
   @Column({ name: 'cancelled_at', type: 'timestamptz' })
-  cancelledAt: Date;
+  cancelledAt!: Date;
 
   @ManyToOne(() => Booking, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'booking_id' })
-  booking: Booking;
+  booking!: Booking;
 }
