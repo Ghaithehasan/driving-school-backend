@@ -8,7 +8,7 @@ import {
 import { User } from '../users/user.entity';
 import { Role } from './role.entity';
 
-@Entity('user_role')
+@Entity('user_roles')
 @Unique(['user', 'role'])
 export class UserRole {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })

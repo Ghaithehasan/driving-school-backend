@@ -17,8 +17,8 @@ export class User {
   @Column({ type: 'varchar', length: 20, unique: true })
   phone: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  password: string | null;
+  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: true })
+  passwordHash: string | null;
 
   @Column({ name: 'must_change_password', type: 'boolean', default: true })
   mustChangePassword: boolean;
