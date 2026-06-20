@@ -3,9 +3,11 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { CancellationParty } from '../common/enums/index';
+import { User } from '../users/user.entity';
 import { Booking } from './booking.entity';
 
 @Entity('booking_cancellations')
@@ -27,7 +29,11 @@ export class BookingCancellation {
   @Column({ name: 'cancelled_at', type: 'timestamptz' })
   cancelledAt: Date;
 
-  @ManyToOne(() => Booking, { nullable: false, onDelete: 'CASCADE' })
+  @OneToOne(() => Booking, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'booking_id' })
   booking: Booking;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'cancelled_by_user_id' })
+  cancelledByUser: User | null;
 }

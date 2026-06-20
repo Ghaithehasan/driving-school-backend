@@ -1,10 +1,12 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
   OneToOne,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import {
   BookingStatus,
@@ -57,4 +59,10 @@ export class Booking {
   @OneToOne(() => Booking, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'replaced_booking_id' })
   replacedBooking: Booking | null;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
 }

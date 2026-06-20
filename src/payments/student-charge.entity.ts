@@ -9,6 +9,7 @@ import {
 import { ChargeReason, ChargeStatus } from '../common/enums/index';
 import { Booking } from '../booking/booking.entity';
 import { Certificate } from '../certificates/certificate.entity';
+import { CertificateExamResult } from '../certificates/certificate-exam-result.entity';
 import { Student } from '../students/student.entity';
 
 @Entity('student_charges')
@@ -42,4 +43,11 @@ export class StudentCharge {
   @ManyToOne(() => Certificate, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'certificate_id' })
   certificate: Certificate | null;
+
+  @ManyToOne(() => CertificateExamResult, {
+    nullable: true,
+    onDelete: 'RESTRICT',
+  })
+  @JoinColumn({ name: 'certificate_exam_result_id' })
+  certificateExamResult: CertificateExamResult | null;
 }

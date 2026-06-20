@@ -7,7 +7,7 @@ import {
 } from 'typeorm';
 import {
   CertificateCategory,
-  CertificateStatus,
+  CertificateRequestStatus,
 } from '../common/enums/index';
 import { Student } from '../students/student.entity';
 
@@ -19,8 +19,15 @@ export class Certificate {
   @Column({ type: 'enum', enum: CertificateCategory })
   category: CertificateCategory;
 
-  @Column({ name: 'request_status', type: 'enum', enum: CertificateStatus })
-  requestStatus: CertificateStatus;
+  @Column({
+    name: 'request_status',
+    type: 'enum',
+    enum: CertificateRequestStatus,
+  })
+  requestStatus: CertificateRequestStatus;
+
+  @Column({ name: 'personal_photo_url', type: 'varchar', length: 500 })
+  personalPhotoUrl: string;
 
   @Column({ name: 'transport_requested', type: 'boolean' })
   transportRequested: boolean;

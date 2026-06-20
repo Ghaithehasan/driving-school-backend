@@ -5,10 +5,10 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
-import { Gender, TrainingTypeFull } from '../common/enums/index';
+import { Gender, TrainingType, VehicleSource } from '../common/enums/index';
 
 @Entity('lesson_price')
-@Unique(['instructorGender', 'trainingType', 'effectiveFrom'])
+@Unique(['instructorGender', 'trainingType', 'vehicleSource', 'effectiveFrom'])
 export class LessonPrice {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: number;
@@ -16,8 +16,11 @@ export class LessonPrice {
   @Column({ name: 'instructor_gender', type: 'enum', enum: Gender })
   instructorGender: Gender;
 
-  @Column({ name: 'training_type', type: 'enum', enum: TrainingTypeFull })
-  trainingType: TrainingTypeFull;
+  @Column({ name: 'training_type', type: 'enum', enum: TrainingType })
+  trainingType: TrainingType;
+
+  @Column({ name: 'vehicle_source', type: 'enum', enum: VehicleSource })
+  vehicleSource: VehicleSource;
 
   @Column({ type: 'numeric', precision: 10, scale: 2 })
   price: string;
