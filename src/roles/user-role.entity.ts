@@ -12,13 +12,13 @@ import { Role } from './role.entity';
 @Unique(['user', 'role'])
 export class UserRole {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
-  @ManyToOne(() => User, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (u) => u.userRoles, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user!: User;
 
   @ManyToOne(() => Role, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'role_id' })
-  role: Role;
+  role!: Role;
 }

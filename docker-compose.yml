@@ -20,6 +20,28 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build: .
+    container_name: driving_school_api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: driving_school_user
+      DB_PASSWORD: driving_school_password
+      DB_NAME: driving_school_db
+      JWT_ACCESS_SECRET: driving_school_access_secret_key_2024
+      JWT_REFRESH_SECRET: driving_school_refresh_secret_key_2024
+      JWT_ACCESS_EXPIRES: 15m
+      JWT_REFRESH_EXPIRES: 7d
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - driving_school_network
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: driving_school_pgadmin

@@ -22,13 +22,15 @@
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
     "migration:revert": "typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts",
     "migration:create": "typeorm-ts-node-commonjs migration:create",
-    "seed:admin": "ts-node src/database/seeds/seed-admin.ts"
+    "seed:admin": "ts-node src/database/seeds/seed-admin.ts",
+    "seed:dev": "ts-node src/database/seeds/seed-dev.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
+    "@nestjs/mapped-types": "*",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/throttler": "^6.5.0",

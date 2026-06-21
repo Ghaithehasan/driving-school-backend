@@ -12,13 +12,13 @@ import { Role } from './role.entity';
 @Unique(['role', 'permission'])
 export class RolePermission {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @ManyToOne(() => Role, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'role_id' })
-  role: Role;
+  role!: Role;
 
   @ManyToOne(() => Permission, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'permission_id' })
-  permission: Permission;
+  permission!: Permission;
 }

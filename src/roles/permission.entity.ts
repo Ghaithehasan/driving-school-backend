@@ -3,14 +3,14 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 @Entity('permissions')
 export class Permission {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ type: 'varchar', length: 80, unique: true })
-  code: string;
+  code!: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  description: string | null;
+  description!: string | null;
 
   @Column({ type: 'varchar', length: 60, nullable: true })
-  module: string | null;
+  module!: string | null;
 }
