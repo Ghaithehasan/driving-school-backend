@@ -61,6 +61,11 @@ export class AuthController {
     return this.authService.getProfile(user.userId);
   }
 
+  @Get('me/permissions')
+  myPermissions(@CurrentUser() user: AuthenticatedUser) {
+    return this.authService.getMyPermissions(user.userId);
+  }
+
   private extractMeta(req: Request): SessionMeta {
     return {
       ip: req.ip ?? null,

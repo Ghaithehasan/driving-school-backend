@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { IsNull, LessThan, Repository } from 'typeorm';
 import { AccountStatus } from '../common/enums/index';
+import { RolePermission } from '../roles/role-permission.entity';
 import { UserRole } from '../roles/user-role.entity';
 import { User } from '../users/user.entity';
 import { AuthSession } from './auth-session.entity';
@@ -29,6 +30,8 @@ export class AuthService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(UserRole)
     private readonly userRoleRepo: Repository<UserRole>,
+    @InjectRepository(RolePermission)
+    private readonly rolePermissionRepo: Repository<RolePermission>,
     @InjectRepository(AuthSession)
     private readonly sessionRepo: Repository<AuthSession>,
     private readonly jwt: JwtService,
@@ -63,11 +66,12 @@ export class AuthService {
       throw new ForbiddenException('هذا الحساب غير مفعّل، راجع الإدارة');
     }
 
-    // 4) حمّل الأدوار وأصدر التوكنات مع جلسة جديدة.
+    // 4) حمّل الأدوار والصلاحيات وأصدر التوكنات مع جلسة جديدة.
     const roles = await this.getUserRoles(user.id);
+    const permissions = await this.getUserPermissions(user.id);
     const tokens = await this.issueTokensWithNewSession(user, roles, meta);
 
-    return { ...tokens, user: this.buildUserPayload(user, roles) };
+    return { ...tokens, user: this.buildUserPayload(user, roles, permissions) };
   }
 
   /**
@@ -154,11 +158,14 @@ export class AuthService {
    */
   async getProfile(userId: number): Promise<AuthUserPayload> {
     const user = await this.userRepo.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException(INVALID_CREDENTIALS);
-    }
+    if (!user) throw new UnauthorizedException(INVALID_CREDENTIALS);
     const roles = await this.getUserRoles(user.id);
-    return this.buildUserPayload(user, roles);
+    const permissions = await this.getUserPermissions(userId);
+    return this.buildUserPayload(user, roles, permissions);
+  }
+
+  async getMyPermissions(userId: number): Promise<string[]> {
+    return this.getUserPermissions(userId);
   }
 
   // ===================== دوال مساعدة داخلية (private) =====================
@@ -170,6 +177,20 @@ export class AuthService {
       relations: { role: true },
     });
     return userRoles.map((ur) => ur.role.title);
+  }
+
+  /** يجيب كل الصلاحيات المرتبطة بأدوار المستخدم. */
+  private async getUserPermissions(userId: number): Promise<string[]> {
+    const rolePermissions = await this.rolePermissionRepo
+      .createQueryBuilder('rp')
+      .innerJoin('rp.role', 'role')
+      .innerJoin(UserRole, 'ur', 'ur.role_id = role.id')
+      .innerJoinAndSelect('rp.permission', 'permission')
+      .where('ur.user_id = :userId', { userId })
+      .getMany();
+
+    const unique = [...new Set(rolePermissions.map((rp) => rp.permission.code))];
+    return unique.sort();
   }
 
   /** ينشئ جلسة جديدة ويصدر access + refresh tokens مربوطين فيها. */
@@ -256,13 +277,14 @@ export class AuthService {
     return new Date(Date.now() + sevenDaysMs);
   }
 
-  private buildUserPayload(user: User, roles: string[]): AuthUserPayload {
+  private buildUserPayload(user: User, roles: string[], permissions: string[]): AuthUserPayload {
     return {
       id: Number(user.id),
       name: user.name,
       phone: user.phone,
       mustChangePassword: user.mustChangePassword,
       roles,
+      permissions,
     };
   }
 
@@ -287,6 +309,7 @@ export interface AuthUserPayload {
   phone: string;
   mustChangePassword: boolean;
   roles: string[];
+  permissions: string[];
 }
 
 export interface LoginResult extends TokenPair {
