@@ -42,6 +42,24 @@ services:
     networks:
       - driving_school_network
 
+  seeder:
+    build:
+      context: .
+      target: seeder
+    container_name: driving_school_seeder
+    restart: "no"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USERNAME: driving_school_user
+      DB_PASSWORD: driving_school_password
+      DB_NAME: driving_school_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - driving_school_network
+
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: driving_school_pgadmin
