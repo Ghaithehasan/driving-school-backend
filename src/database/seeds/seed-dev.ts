@@ -109,6 +109,7 @@ const PERMISSIONS: { code: string; module: string; description: string }[] = [
   { code: 'payments.create',      module: 'payments',      description: 'إضافة دفعة' },
   { code: 'payments.read',        module: 'payments',      description: 'عرض المدفوعات' },
   { code: 'payments.verify',      module: 'payments',      description: 'التحقق من الدفع' },
+  { code: 'payments.collect',     module: 'payments',      description: 'تحصيل باقي المبلغ وإتمام الدرس' },
 
   { code: 'certificates.create',  module: 'certificates',  description: 'إنشاء شهادة' },
   { code: 'certificates.read',    module: 'certificates',  description: 'عرض الشهادات' },
@@ -139,7 +140,7 @@ const ROLE_PERMISSIONS: Record<RoleTitle, string[]> = {
     'instructors.read',
     'vehicles.read', 'vehicles.create', 'vehicles.update', 'vehicles.maintenance', 'vehicles.archive',
     'bookings.create', 'bookings.read', 'bookings.cancel', 'bookings.complete', 'bookings.no-show',
-    'payments.create', 'payments.read',
+    'payments.create', 'payments.read', 'payments.collect',
     'certificates.create', 'certificates.read', 'certificates.update', 'certificates.cancel',
     'notifications.read',
   ],
@@ -147,7 +148,7 @@ const ROLE_PERMISSIONS: Record<RoleTitle, string[]> = {
   [RoleTitle.ACCOUNTANT]: [
     'students.read',
     'bookings.read',
-    'payments.read', 'payments.verify',
+    'payments.read', 'payments.verify', 'payments.collect',
     'expenses.create', 'expenses.read', 'expenses.update',
     'vehicles.read', 'vehicles.fuel',
     'notifications.read',
@@ -477,22 +478,25 @@ async function seed() {
         { studentIdx: 8, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.EXPIRED,         pStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE, date: '2026-06-15', hour: 9  },
         { studentIdx: 9, instructorIdx: 1, vehicleIdx: 0, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.EXPIRED,         pStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE, date: '2026-06-18', hour: 10 },
 
-        // ── ملغاة (بواسطة الطالب) ──
-        { studentIdx: 1, instructorIdx: 0, vehicleIdx: 2, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.CANCELLED,       pStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE, date: '2026-06-08', hour: 9,  cancelParty: CancellationParty.STUDENT, cancelReason: 'ظرف طارئ' },
-        { studentIdx: 3, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.CANCELLED,       pStatus: PaymentStatus.DEPOSIT_AVAILABLE_FOR_REBOOKING, date: '2026-06-14', hour: 11, cancelParty: CancellationParty.STUDENT, cancelReason: 'تغيير الموعد' },
-        { studentIdx: 4, instructorIdx: 1, vehicleIdx: null, trainingType: TrainingType.MANUAL, source: VehicleSource.STUDENT_CAR, bStatus: BookingStatus.CANCELLED,      pStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE, date: '2026-06-16', hour: 10, cancelParty: CancellationParty.SCHOOL, cancelReason: 'غياب المدرب' },
+        // ── ملغاة ──
+        // الطالب يُلغي → العربون غير مسترد (NON_REFUNDABLE)
+        { studentIdx: 1, instructorIdx: 0, vehicleIdx: 2, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR,  bStatus: BookingStatus.CANCELLED, pStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE,          date: '2026-06-08', hour: 9,  cancelParty: CancellationParty.STUDENT, cancelReason: 'ظرف طارئ' },
+        // الطالب يُلغي → العربون غير مسترد
+        { studentIdx: 3, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR,  bStatus: BookingStatus.CANCELLED, pStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE,          date: '2026-06-14', hour: 11, cancelParty: CancellationParty.STUDENT, cancelReason: 'تغيير الموعد' },
+        // المدرسة تُلغي → العربون متاح للنقل لحجز جديد (AVAILABLE_FOR_REBOOKING)
+        { studentIdx: 4, instructorIdx: 1, vehicleIdx: null, trainingType: TrainingType.MANUAL, source: VehicleSource.STUDENT_CAR, bStatus: BookingStatus.CANCELLED, pStatus: PaymentStatus.DEPOSIT_AVAILABLE_FOR_REBOOKING, date: '2026-06-16', hour: 10, cancelParty: CancellationParty.SCHOOL,  cancelReason: 'غياب المدرب' },
 
-        // ── بانتظار الدفع ──
+        // ── بانتظار الدفع (مدرس مختلف + سيارة مختلفة لكل صف) ──
         { studentIdx: 2, instructorIdx: 0, vehicleIdx: 2, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.PENDING_PAYMENT, pStatus: PaymentStatus.PENDING_DEPOSIT, date: '2026-06-28', hour: 9  },
-        { studentIdx: 5, instructorIdx: 2, vehicleIdx: 1, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.PENDING_PAYMENT, pStatus: PaymentStatus.PENDING_DEPOSIT, date: '2026-06-29', hour: 10 },
+        { studentIdx: 5, instructorIdx: 2, vehicleIdx: 1, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.PENDING_PAYMENT, pStatus: PaymentStatus.PENDING_DEPOSIT, date: '2026-06-29', hour: 9  },
 
-        // ── مؤكدة (مستقبلية) ──
+        // ── مؤكدة (مستقبلية) — كل مدرس وسيارة على يوم منفصل تماماً ──
         { studentIdx: 6, instructorIdx: 0, vehicleIdx: 2, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-01', hour: 9  },
-        { studentIdx: 7, instructorIdx: 1, vehicleIdx: 0, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-01', hour: 11 },
-        { studentIdx: 8, instructorIdx: 2, vehicleIdx: 1, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-02', hour: 9  },
-        { studentIdx: 9, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-02', hour: 11 },
-        { studentIdx: 0, instructorIdx: 1, vehicleIdx: 0, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-03', hour: 9  },
-        { studentIdx: 1, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-03', hour: 11 },
+        { studentIdx: 7, instructorIdx: 1, vehicleIdx: 0, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-02', hour: 9  },
+        { studentIdx: 8, instructorIdx: 2, vehicleIdx: 1, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-03', hour: 9  },
+        { studentIdx: 9, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-05', hour: 9  },
+        { studentIdx: 0, instructorIdx: 1, vehicleIdx: 0, trainingType: TrainingType.AUTOMATIC, source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-07', hour: 9  },
+        { studentIdx: 1, instructorIdx: 3, vehicleIdx: 3, trainingType: TrainingType.MANUAL,    source: VehicleSource.SCHOOL_CAR, bStatus: BookingStatus.BOOKED,          pStatus: PaymentStatus.DEPOSIT_PAID,    date: '2026-07-08', hour: 9  },
       ];
 
       const savedBookings: Booking[] = [];
@@ -504,6 +508,27 @@ async function seed() {
 
         const startAt = dt(row.date, row.hour);
         const endAt   = dt(row.date, row.hour + 1);
+
+        // Idempotency: skip if this exact slot already exists (prevents constraint violations on re-run)
+        const existing = await bookingRepo.findOne({
+          where: { student: { id: student.id }, instructor: { id: instructor.id }, startAt },
+        });
+        if (existing) {
+          // Update statuses in case seed data was corrected after initial insert
+          if (
+            existing.bookingStatus !== row.bStatus ||
+            existing.paymentStatus !== row.pStatus
+          ) {
+            await bookingRepo.update(existing.id, {
+              bookingStatus: row.bStatus,
+              paymentStatus: row.pStatus,
+            });
+            existing.bookingStatus = row.bStatus;
+            existing.paymentStatus = row.pStatus;
+          }
+          savedBookings.push(existing);
+          continue;
+        }
 
         const booking = await bookingRepo.save(bookingRepo.create({
           vehicleSource: row.source,
@@ -602,9 +627,12 @@ async function seed() {
         { key: 'school_name',               value: 'مدرسة القيادة',    valueType: SettingValueType.STRING,  description: 'اسم المدرسة' },
         { key: 'school_phone',              value: '0111234567',        valueType: SettingValueType.STRING,  description: 'هاتف المدرسة' },
         { key: 'lesson_duration_minutes',   value: '60',                valueType: SettingValueType.NUMBER,  description: 'مدة الحصة بالدقائق' },
-        { key: 'deposit_amount',            value: '500',               valueType: SettingValueType.NUMBER,  description: 'مبلغ العربون' },
+        { key: 'deposit_amount',            value: '500',               valueType: SettingValueType.NUMBER,  description: 'مبلغ العربون الثابت (legacy)' },
+        { key: 'deposit_percentage',        value: '50',                valueType: SettingValueType.PERCENT, description: 'نسبة العربون من سعر الدرس' },
+        { key: 'booking_window_days',       value: '4',                 valueType: SettingValueType.NUMBER,  description: 'عدد أيام نافذة الحجز المتاحة' },
+        { key: 'booking_hold_minutes',      value: '15',                valueType: SettingValueType.NUMBER,  description: 'مدة الحجز المعلق قبل انتهائه (موبايل)' },
         { key: 'max_bookings_per_day',      value: '8',                 valueType: SettingValueType.NUMBER,  description: 'أقصى حجوزات يومية للمدرب' },
-        { key: 'booking_lock_minutes',      value: '30',                valueType: SettingValueType.NUMBER,  description: 'مدة قفل الحجز قبل انتهائه' },
+        { key: 'booking_lock_minutes',      value: '30',                valueType: SettingValueType.NUMBER,  description: 'مدة قفل الحجز (legacy)' },
         { key: 'cancellation_fee_percent',  value: '0',                 valueType: SettingValueType.PERCENT, description: 'نسبة رسوم الإلغاء' },
         { key: 'working_hours_start',       value: '08:00',             valueType: SettingValueType.TIME,    description: 'بداية ساعات العمل' },
         { key: 'working_hours_end',         value: '18:00',             valueType: SettingValueType.TIME,    description: 'نهاية ساعات العمل' },
