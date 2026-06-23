@@ -32,4 +32,8 @@ export class BookingCancellation {
   @OneToOne(() => Booking, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'booking_id' })
   booking: Booking;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'cancelled_by_user_id' })
+  cancelledByUser!: User | null;
 }
