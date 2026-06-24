@@ -14,7 +14,7 @@ lerna-debug.log*
 شرح_بناء_قاعدة_البيانات.md
 # OS
 .DS_Store
-
+TEAMMATE-CHANGES.md
 # Tests
 /coverage
 /.nyc_output

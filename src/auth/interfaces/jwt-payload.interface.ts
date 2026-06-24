@@ -21,6 +21,17 @@ export interface RefreshTokenPayload {
 }
 
 /**
+ * محتوى توكن إعادة تعيين كلمة المرور (قصير العمر، يُصدَر بعد التحقق من الـ OTP).
+ * - sub: معرّف المستخدم.
+ * - purpose: غرض التوكن — حتى ما ينقبل توكن من نوع آخر في مسار الإعادة.
+ */
+export interface ResetTokenPayload {
+  sub: number;
+  purpose: string;
+  tokenVersion: number;
+}
+
+/**
  * الشكل اللي بينحقن في req.user بعد ما يتحقق الـ JwtStrategy من الـ access token.
  */
 export interface AuthenticatedUser {

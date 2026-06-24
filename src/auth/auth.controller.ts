@@ -11,8 +11,13 @@ import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RegisterDto } from './dto/register.dto';
+import { RegisterRequestOtpDto } from './dto/register-request-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
 import type {
   AuthenticatedUser,
   SessionMeta,
@@ -37,6 +42,48 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Post('register/request-otp')
+  @HttpCode(HttpStatus.OK)
+  registerRequestOtp(@Body() dto: RegisterRequestOtpDto) {
+    return this.authService.registerRequestOtp(dto.phone);
+  }
+
+  @Public()
+  @Post('register')
+  register(@Body() dto: RegisterDto, @Req() req: Request) {
+    return this.authService.registerStudent(
+      {
+        name: dto.name,
+        phone: dto.phone,
+        code: dto.code,
+        password: dto.password,
+      },
+      { ...this.extractMeta(req), deviceName: dto.deviceName ?? null },
+    );
+  }
+
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.phone);
+  }
+
+  @Public()
+  @Post('verify-otp')
+  @HttpCode(HttpStatus.OK)
+  verifyOtp(@Body() dto: VerifyOtpDto) {
+    return this.authService.verifyOtp(dto.phone, dto.code);
+  }
+
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.resetToken, dto.newPassword);
   }
 
   @Post('logout')

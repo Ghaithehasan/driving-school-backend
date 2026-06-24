@@ -1,4 +1,6 @@
 import {
+  BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
@@ -7,21 +9,26 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
-import { IsNull, LessThan, Repository } from 'typeorm';
-import { AccountStatus } from '../common/enums/index';
+import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
+import { AccountStatus, OtpPurpose } from '../common/enums/index';
 import { RolePermission } from '../roles/role-permission.entity';
 import { UserRole } from '../roles/user-role.entity';
 import { User } from '../users/user.entity';
+import { createStudentAccount } from '../users/create-student-account';
+import { AuthOtpCode } from './auth-otp-code.entity';
 import { AuthSession } from './auth-session.entity';
 import {
   AccessTokenPayload,
   RefreshTokenPayload,
+  ResetTokenPayload,
   SessionMeta,
 } from './interfaces/jwt-payload.interface';
 
-// رسالة موحّدة لكل أخطاء الدخول — حتى ما نكشف للمهاجم إذا الرقم غلط أو الباسوورد غلط.
 const INVALID_CREDENTIALS = 'بيانات الدخول غير صحيحة';
 const INVALID_SESSION = 'الجلسة غير صالحة أو منتهية';
+const OTP_EXPIRY_MINUTES = 2;
+const OTP_MAX_ATTEMPTS = 3;
+const OTP_RESEND_COOLDOWN_SECONDS = 120;
 
 @Injectable()
 export class AuthService {
@@ -34,6 +41,9 @@ export class AuthService {
     private readonly rolePermissionRepo: Repository<RolePermission>,
     @InjectRepository(AuthSession)
     private readonly sessionRepo: Repository<AuthSession>,
+    @InjectRepository(AuthOtpCode)
+    private readonly otpRepo: Repository<AuthOtpCode>,
+    private readonly dataSource: DataSource,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
@@ -168,6 +178,144 @@ export class AuthService {
     return this.getUserPermissions(userId);
   }
 
+  /**
+   * الخطوة 1: طلب إعادة تعيين كلمة المرور.
+   * يتحقق من وجود الرقم وحالة الحساب، يلغي أي OTP سابق، ويولّد رمز جديد.
+   */
+  async forgotPassword(phone: string): Promise<ForgotPasswordResult> {
+    const user = await this.userRepo.findOne({ where: { phone } });
+    if (!user) {
+      throw new BadRequestException('رقم الهاتف غير مسجّل في النظام');
+    }
+
+    if (user.accountStatus !== AccountStatus.ACTIVE) {
+      throw new ForbiddenException('هذا الحساب غير مفعّل، راجع الإدارة');
+    }
+
+    const code = await this.issueOtp(phone, OtpPurpose.PASSWORD_RESET, user);
+
+    return {
+      message: `تم إرسال رمز التحقق إلى الرقم ${phone}، صالح لمدة ${OTP_EXPIRY_MINUTES} دقائق`,
+      code,
+    };
+  }
+
+  /**
+   * الخطوة 2: التحقق من رمز الـ OTP.
+   * لو الرمز صحيح وصالح، نستهلكه ونصدر resetToken قصير العمر
+   * يسمح بالخطوة الأخيرة (تغيير كلمة المرور) — بدون إعادة إرسال الرمز.
+   */
+  async verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
+    const otp = await this.validateOtp(phone, OtpPurpose.PASSWORD_RESET, code);
+
+    // الرمز صحيح — نستهلكه فوراً حتى ما ينعاد استخدامه.
+    otp.consumedAt = new Date();
+    await this.otpRepo.save(otp);
+
+    if (!otp.user) {
+      throw new BadRequestException('رمز التحقق غير صالح');
+    }
+
+    const resetToken = await this.signResetToken(otp.user.id, otp.user.tokenVersion);
+    return { resetToken };
+  }
+
+  // ===================== تسجيل الطالب (تطبيق الموبايل) =====================
+
+  /**
+   * الخطوة 1 من التسجيل: طلب رمز تحقق لرقم هاتف جديد.
+   * يرفض إذا الرقم مسجّل مسبقاً، ويولّد OTP بغرض تأكيد الهاتف.
+   */
+  async registerRequestOtp(phone: string): Promise<ForgotPasswordResult> {
+    const existing = await this.userRepo.findOne({ where: { phone } });
+    if (existing) {
+      throw new ConflictException('رقم الهاتف لديه حساب مسبقاً، الرجاء تسجيل الدخول');
+    }
+
+    // الـ OTP هنا مرتبط بالرقم فقط (لا يوجد مستخدم بعد).
+    const code = await this.issueOtp(phone, OtpPurpose.PHONE_VERIFICATION, null);
+
+    return {
+      message: `تم إرسال رمز التحقق إلى الرقم ${phone}، صالح لمدة ${OTP_EXPIRY_MINUTES} دقائق`,
+      code,
+    };
+  }
+
+  /**
+   * الخطوة 2 من التسجيل: تأكيد الـ OTP وإنشاء حساب الطالب وتسجيل دخوله فوراً.
+   * استهلاك الـ OTP وإنشاء الحساب يتمّان ضمن transaction واحد (ذرّي).
+   */
+  async registerStudent(
+    input: RegisterStudentInput,
+    meta: SessionMeta,
+  ): Promise<LoginResult> {
+    // 1) تحقّق من الـ OTP بدون استهلاكه (سيُستهلَك داخل الـ transaction).
+    const otp = await this.validateOtp(
+      input.phone,
+      OtpPurpose.PHONE_VERIFICATION,
+      input.code,
+    );
+
+    const passwordHash = await argon2.hash(input.password);
+
+    // 2) ذرّياً: استهلك الـ OTP وأنشئ الحساب — لو فشل أحدهما يرجع كلاهما.
+    const { user } = await this.dataSource.transaction(async (manager) => {
+      await manager.update(AuthOtpCode, { id: otp.id }, { consumedAt: new Date() });
+      return createStudentAccount(manager, {
+        name: input.name,
+        phone: input.phone,
+        passwordHash,
+        mustChangePassword: false, // الطالب حطّ كلمة مروره بنفسه
+      });
+    });
+
+    // 3) تسجيل دخول تلقائي — أصدر التوكنات مع جلسة جديدة.
+    const roles = await this.getUserRoles(user.id);
+    const permissions = await this.getUserPermissions(user.id);
+    const tokens = await this.issueTokensWithNewSession(user, roles, meta);
+
+    return { ...tokens, user: this.buildUserPayload(user, roles, permissions) };
+  }
+
+  /**
+   * الخطوة 3: تغيير كلمة المرور مقابل resetToken صالح (الصادر من verifyOtp).
+   * يغيّر كلمة السر ويُبطل كل الجلسات القائمة.
+   */
+  async resetPassword(resetToken: string, newPassword: string): Promise<{ message: string }> {
+    const payload = await this.verifyResetToken(resetToken);
+
+    const user = await this.userRepo.findOne({ where: { id: payload.sub } });
+    if (!user) {
+      throw new BadRequestException('رمز إعادة التعيين غير صالح');
+    }
+
+    if (payload.tokenVersion !== user.tokenVersion) {
+      throw new BadRequestException('رمز إعادة التعيين مستخدم مسبقاً');
+    }
+
+    const passwordHash = await argon2.hash(newPassword);
+
+    await this.dataSource.transaction(async (manager) => {
+      // تغيير كلمة المرور
+      await manager.update(User, { id: user.id }, {
+        passwordHash,
+        mustChangePassword: false,
+      });
+
+      // إبطال كل الجلسات مشان أي حدا سارق الحساب يطلع فوراً
+      await manager.update(
+        AuthSession,
+        { user: { id: user.id }, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+
+      // رفع tokenVersion حتى كل الـ access tokens الحالية تصير غير صالحة
+      await manager.increment(User, { id: user.id }, 'tokenVersion', 1);
+    });
+
+    return { message: 'تم تغيير كلمة المرور بنجاح' };
+  }
+
   // ===================== دوال مساعدة داخلية (private) =====================
 
   /** يجيب أسماء أدوار المستخدم من جدول user_roles. */
@@ -271,7 +419,135 @@ export class AuthService {
     }
   }
 
-  /** تاريخ انتهاء الجلسة في الداتابيز = الآن + 7 أيام (يطابق عمر الـ refresh token). */
+  private generateOtpCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  /**
+   * يولّد رمز OTP جديد لرقم وغرض معيّن، ويخزّن بصمته، ويُلغي أي رمز سابق.
+   * يطبّق فترة تهدئة (cooldown) لمنع إغراق الرقم برسائل.
+   * يرجّع الرمز الخام (حالياً للتطوير — لاحقاً يُرسَل عبر SMS).
+   */
+  private async issueOtp(
+    phone: string,
+    purpose: OtpPurpose,
+    user: User | null,
+  ): Promise<string> {
+    const recentOtp = await this.otpRepo.findOne({
+      where: { phone, purpose, consumedAt: IsNull() },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (recentOtp) {
+      const secondsSinceCreation =
+        (Date.now() - recentOtp.createdAt.getTime()) / 1000;
+      if (secondsSinceCreation < OTP_RESEND_COOLDOWN_SECONDS) {
+        throw new BadRequestException('يرجى الانتظار قبل طلب رمز جديد');
+      }
+    }
+
+    const code = this.generateOtpCode();
+    const codeHash = await argon2.hash(code);
+
+    await this.dataSource.transaction(async (manager) => {
+      // إلغاء أي رمز سابق غير مستهلك لنفس الرقم والغرض
+      await manager.update(
+        AuthOtpCode,
+        { phone, purpose, consumedAt: IsNull() },
+        { consumedAt: new Date() },
+      );
+      // حفظ الرمز الجديد
+      await manager.save(
+        manager.create(AuthOtpCode, {
+          phone,
+          user,
+          codeHash,
+          purpose,
+          expiresAt: new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000),
+          attemptsCount: 0,
+        }),
+      );
+    });
+
+    return code;
+  }
+
+  /**
+   * يتحقق من صحّة رمز OTP (موجود، غير منتهي، ضمن حدّ المحاولات، مطابق).
+   * يزيد عدّاد المحاولات عند الخطأ. لا يستهلك الرمز — المُستدعي مسؤول عن الاستهلاك.
+   * يرجّع سطر الـ OTP (مع علاقة الـ user) عند النجاح.
+   */
+  private async validateOtp(
+    phone: string,
+    purpose: OtpPurpose,
+    code: string,
+  ): Promise<AuthOtpCode> {
+    const otp = await this.otpRepo.findOne({
+      where: { phone, purpose, consumedAt: IsNull() },
+      relations: { user: true },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!otp) {
+      throw new BadRequestException('رمز التحقق غير صالح أو منتهي');
+    }
+
+    if (otp.expiresAt.getTime() <= Date.now()) {
+      throw new BadRequestException('انتهت صلاحية رمز التحقق، اطلب رمزاً جديداً');
+    }
+
+    if (otp.attemptsCount >= OTP_MAX_ATTEMPTS) {
+      otp.consumedAt = new Date();
+      await this.otpRepo.save(otp);
+      throw new BadRequestException('تم تجاوز عدد المحاولات المسموحة، اطلب رمزاً جديداً');
+    }
+
+    const codeValid = await argon2.verify(otp.codeHash, code);
+    if (!codeValid) {
+      otp.attemptsCount += 1;
+      await this.otpRepo.save(otp);
+      throw new BadRequestException('رمز التحقق غير صحيح');
+    }
+
+    return otp;
+  }
+
+  /** سرّ توقيع توكن إعادة التعيين — منفصل عن سرّ الـ access حتى ما ينخلط الغرض. */
+  private getResetSecret(): string {
+    return (
+      this.config.get<string>('JWT_RESET_SECRET') ??
+      `${this.config.get<string>('JWT_ACCESS_SECRET')}_reset`
+    );
+  }
+
+  private async signResetToken(userId: number, tokenVersion: number): Promise<string> {
+    const payload: ResetTokenPayload = {
+      sub: Number(userId),
+      purpose: OtpPurpose.PASSWORD_RESET,
+      tokenVersion,
+    };
+    return this.jwt.signAsync(payload, {
+      secret: this.getResetSecret(),
+      expiresIn: '10m',
+    } as JwtSignOptions);
+  }
+
+  private async verifyResetToken(token: string): Promise<ResetTokenPayload> {
+    let payload: ResetTokenPayload;
+    try {
+      payload = await this.jwt.verifyAsync<ResetTokenPayload>(token, {
+        secret: this.getResetSecret(),
+      });
+    } catch {
+      throw new BadRequestException('رمز إعادة التعيين غير صالح أو منتهي');
+    }
+    // تأكد إنه الغرض صحيح — حتى ما ينقبل توكن من نوع تاني.
+    if (payload.purpose !== OtpPurpose.PASSWORD_RESET) {
+      throw new BadRequestException('رمز إعادة التعيين غير صالح');
+    }
+    return payload;
+  }
+
   private getRefreshExpiryDate(): Date {
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     return new Date(Date.now() + sevenDaysMs);
@@ -314,4 +590,20 @@ export interface AuthUserPayload {
 
 export interface LoginResult extends TokenPair {
   user: AuthUserPayload;
+}
+
+export interface ForgotPasswordResult {
+  message: string;
+  code?: string;
+}
+
+export interface VerifyOtpResult {
+  resetToken: string;
+}
+
+export interface RegisterStudentInput {
+  name: string;
+  phone: string;
+  code: string;
+  password: string;
 }

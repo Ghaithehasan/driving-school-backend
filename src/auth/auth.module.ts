@@ -7,6 +7,7 @@ import { RolePermission } from '../roles/role-permission.entity';
 import { Role } from '../roles/role.entity';
 import { UserRole } from '../roles/user-role.entity';
 import { User } from '../users/user.entity';
+import { AuthOtpCode } from './auth-otp-code.entity';
 import { AuthSession } from './auth-session.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -15,7 +16,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserRole, Role, AuthSession, RolePermission, Permission]),
+    TypeOrmModule.forFeature([User, UserRole, Role, AuthSession, AuthOtpCode, RolePermission, Permission]),
     PassportModule,
     JwtModule.register({}),
   ],

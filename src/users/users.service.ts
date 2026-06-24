@@ -2,11 +2,11 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { DataSource } from 'typeorm';
-import { AccountStatus, RoleTitle, StudentStatus } from '../common/enums/index';
+import { AccountStatus, RoleTitle } from '../common/enums/index';
 import { Role } from '../roles/role.entity';
 import { UserRole } from '../roles/user-role.entity';
-import { Student } from '../students/student.entity';
 import { User } from './user.entity';
+import { createStudentAccount } from './create-student-account';
 import { CreateStudentDto } from './dto/CreateStudentDto';
 import { CreateInstructorDto } from './dto/create-instructor.dto';
 import { Instructor } from '../instructors/instructor.entity';
@@ -21,33 +21,15 @@ export class UsersService {
 
   async createStudent(dto: CreateStudentDto) {
     return this.dataSource.transaction(async (manager) => {
-      const existing = await manager.findOne(User, { where: { phone: dto.phone } });
-      if (existing) throw new ConflictException('رقم الهاتف مستخدم مسبقاً');
-
       const passwordHash = await argon2.hash(dto.password);
 
-      const user = await manager.save(
-        manager.create(User, {
-          name: dto.name,
-          phone: dto.phone,
-          passwordHash,
-          accountStatus: AccountStatus.ACTIVE,
-          mustChangePassword: true,
-        }),
-      );
-
-      const student = await manager.save(
-        manager.create(Student, {
-          user,
-          studentStatus: StudentStatus.IN_TRAINING,
-        }),
-      );
-
-      const role = await manager.findOneOrFail(Role, {
-        where: { title: RoleTitle.STUDENT },
+      // الإدارة تنشئ الطالب بكلمة مرور مؤقتة يجب تغييرها عند أول دخول.
+      const { user, student } = await createStudentAccount(manager, {
+        name: dto.name,
+        phone: dto.phone,
+        passwordHash,
+        mustChangePassword: true,
       });
-
-      await manager.save(manager.create(UserRole, { user, role }));
 
       return {
         id: Number(user.id),
