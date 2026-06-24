@@ -21,7 +21,7 @@ import { BookingService } from './booking.service';
 @Controller('reception/bookings')
 @UseGuards(PermissionGuard)
 export class ReceptionBookingController {
-  constructor(private readonly bookingService: BookingService) {}
+  constructor(private readonly bookingService: BookingService) { }
 
   /**
    * GET /reception/bookings/available-slots
@@ -31,18 +31,6 @@ export class ReceptionBookingController {
   @RequirePermissions('bookings.read')
   getAvailableSlots(@Query() query: AvailableSlotsQueryDto) {
     return this.bookingService.getAvailableSlots(query);
-  }
-
-  /**
-   * GET /reception/bookings/student/:studentId/credit-check
-   * Call this when the receptionist picks a student in the new-booking form.
-   * Returns { hasCredit, creditFromBookingId?, creditAmount? } so the UI
-   * knows whether to show the cash-amount field or hide it.
-   */
-  @Get('student/:studentId/credit-check')
-  @RequirePermissions('bookings.read')
-  checkStudentCredit(@Param('studentId', ParseIntPipe) studentId: number) {
-    return this.bookingService.checkStudentCredit(studentId);
   }
 
   /** GET /reception/bookings */
@@ -74,7 +62,7 @@ export class ReceptionBookingController {
 
   /** POST /reception/bookings/:id/pay-remainder */
   @Post(':id/pay-remainder')
-  @RequirePermissions('payments.collect')
+  @RequirePermissions('payments.create')
   payRemainder(@Param('id', ParseIntPipe) id: number) {
     return this.bookingService.payRemainder(id);
   }

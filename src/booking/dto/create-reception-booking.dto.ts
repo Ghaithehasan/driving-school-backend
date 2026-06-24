@@ -18,16 +18,15 @@ export class CreateReceptionBookingDto {
   @IsPositive()
   instructorId!: number;
 
-  /**
-   * Local 24-hour datetime in school timezone (UTC+3).
-   * Format: "YYYY-MM-DD HH:MM"  e.g. "2026-07-01 08:00"
-   * The service converts this to UTC before persisting.
-   */
+  /** Lesson date in school local time. Format: "YYYY-MM-DD"  e.g. "2026-07-01" */
   @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, {
-    message: 'startAt must be "YYYY-MM-DD HH:MM" (24-hour school local time)',
-  })
-  startAt!: string;
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be "YYYY-MM-DD"' })
+  date!: string;
+
+  /** Lesson start time in school local 24-hour time. Format: "HH:MM"  e.g. "08:00" */
+  @IsString()
+  @Matches(/^\d{2}:\d{2}$/, { message: 'time must be "HH:MM" (24-hour)' })
+  time!: string;
 
   @IsEnum(TrainingType)
   trainingType!: TrainingType;

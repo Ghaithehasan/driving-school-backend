@@ -71,9 +71,9 @@ const ARABIC_DAY_NAMES: Record<number, string> = {
   6: 'السبت',
 };
 
-// School timezone offset in ms (UTC+3 — Syria Standard Time).
-// All slot-generation logic uses explicit UTC arithmetic so the result
-// is the same regardless of the Node.js process timezone.
+// UTC+3 offset used ONLY for deriving a "local now" value to compare against
+// TIMESTAMP WITHOUT TIME ZONE columns (which store local wall-clock).
+// The Node.js process is expected to run in UTC; new Date() returns actual UTC.
 const SCHOOL_TZ_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 @Injectable()
@@ -165,17 +165,15 @@ export class BookingService {
     return parseFloat(ip.price);
   }
 
-  /** Converts a UTC Date to local time components (UTC+3).
-   *  Returns plain strings — no timezone ambiguity for the client. */
-  private toLocalSlot(utcStart: Date, utcEnd: Date) {
-    const ls = new Date(utcStart.getTime() + SCHOOL_TZ_OFFSET_MS);
-    const le = new Date(utcEnd.getTime()   + SCHOOL_TZ_OFFSET_MS);
+  /** Extracts display strings from local-wall-clock Date objects.
+   *  Columns are TIMESTAMP WITHOUT TIME ZONE, so UTC methods return local values directly. */
+  private toLocalSlot(start: Date, end: Date) {
     const pad = (n: number) => String(n).padStart(2, '0');
     return {
-      date:      ls.toISOString().slice(0, 10),                    // "YYYY-MM-DD"
-      dayName:   ARABIC_DAY_NAMES[ls.getUTCDay()],                 // "الأربعاء"
-      startTime: `${pad(ls.getUTCHours())}:${pad(ls.getUTCMinutes())}`, // "08:00"
-      endTime:   `${pad(le.getUTCHours())}:${pad(le.getUTCMinutes())}`, // "09:30"
+      date:      start.toISOString().slice(0, 10),
+      dayName:   ARABIC_DAY_NAMES[start.getUTCDay()],
+      startTime: `${pad(start.getUTCHours())}:${pad(start.getUTCMinutes())}`,
+      endTime:   `${pad(end.getUTCHours())}:${pad(end.getUTCMinutes())}`,
     };
   }
 
@@ -271,9 +269,66 @@ export class BookingService {
 
     const [bookings, total] = await qb.getManyAndCount();
 
+    // ── Remaining-amount enrichment ─────────────────────────────────────────
+    // Only BOOKED + DEPOSIT_PAID bookings need this; everything else gets null.
+
+    const payableIds = bookings
+      .filter(
+        (b) =>
+          b.bookingStatus === BookingStatus.BOOKED &&
+          b.paymentStatus === PaymentStatus.DEPOSIT_PAID,
+      )
+      .map((b) => b.id);
+
+    // 1) Total paid per booking — one aggregation query for the whole page
+    const totalPaidMap = new Map<number, number>();
+    if (payableIds.length > 0) {
+      const rows: { bookingId: number; totalPaid: string }[] =
+        await this.dataSource.query(
+          `SELECT sc.booking_id AS "bookingId",
+                  COALESCE(SUM(sp.amount_paid), 0) AS "totalPaid"
+           FROM   student_charges sc
+           LEFT JOIN student_payments sp ON sp.student_charge_id = sc.id
+           WHERE  sc.booking_id = ANY($1)
+           GROUP  BY sc.booking_id`,
+          [payableIds],
+        );
+      for (const r of rows) {
+        totalPaidMap.set(Number(r.bookingId), parseFloat(r.totalPaid));
+      }
+    }
+
+    // 2) Effective lesson price per unique (gender, trainingType, vehicleSource, createdAt)
+    //    A school rarely has more than 4-6 unique combos on one page.
+    const priceCache = new Map<string, number>();
+    const payableSet = new Set(payableIds);
+    for (const b of bookings) {
+      if (!payableSet.has(b.id)) continue;
+      const key = `${b.instructor.gender}|${b.trainingType}|${b.vehicleSource}|${b.createdAt.toISOString().split('T')[0]}`;
+      if (!priceCache.has(key)) {
+        const price = await this.getEffectiveLessonPrice(
+          b.instructor.gender,
+          b.trainingType,
+          b.vehicleSource,
+          b.createdAt,
+        );
+        priceCache.set(key, price);
+      }
+    }
+
     return {
       data: bookings.map((b) => {
         const { date, dayName, startTime, endTime } = this.toLocalSlot(b.startAt, b.endAt);
+
+        let remainingAmount: string | null = null;
+        if (payableSet.has(b.id)) {
+          const key = `${b.instructor.gender}|${b.trainingType}|${b.vehicleSource}|${b.createdAt.toISOString().split('T')[0]}`;
+          const fullPrice = priceCache.get(key) ?? 0;
+          const paid = totalPaidMap.get(b.id) ?? 0;
+          const rem = Math.round((fullPrice - paid) * 100) / 100;
+          remainingAmount = rem > 0 ? rem.toFixed(2) : null;
+        }
+
         return {
           id: b.id,
           studentName: b.student.user.name,
@@ -287,6 +342,7 @@ export class BookingService {
           endTime,
           bookingStatus: b.bookingStatus,
           paymentStatus: b.paymentStatus,
+          remainingAmount,
         };
       }),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
@@ -312,20 +368,6 @@ export class BookingService {
     });
 
     const chargeIds = charges.map((c) => c.id);
-    const payments =
-      chargeIds.length > 0
-        ? await this.paymentRepo.find({
-            where: { studentCharge: { id: In(chargeIds) } },
-          })
-        : [];
-
-    const paymentsByCharge = new Map<number, StudentPayment[]>();
-    for (const p of payments) {
-      // Load charge relation to get the chargeId
-      const chargeId = (p as any).studentCharge?.id ?? (p.studentCharge as any);
-      if (!paymentsByCharge.has(chargeId)) paymentsByCharge.set(chargeId, []);
-      paymentsByCharge.get(chargeId)!.push(p);
-    }
 
     // Load payments with studentCharge relation populated for grouping
     const paymentsWithCharge =
@@ -444,7 +486,10 @@ export class BookingService {
     const durationMs = durationMin * 60 * 1000;
 
     const now = new Date();
-    const windowEnd = new Date(now.getTime() + windowDays * 24 * 60 * 60 * 1000);
+    // localNow has UTC components === school local wall-clock time.
+    // Used for comparisons against TIMESTAMP (no TZ) columns.
+    const localNow = new Date(now.getTime() + SCHOOL_TZ_OFFSET_MS);
+    const localWindowEnd = new Date(localNow.getTime() + windowDays * 24 * 60 * 60 * 1000);
 
     // A) Matching instructors with user info
     const matchingTypes =
@@ -476,26 +521,27 @@ export class BookingService {
       availByInstructorDay.set(`${a.instructor.id}:${a.dayOfWeek}`, a);
     }
 
-    // D) Instructor unavailable periods in window
+    // D) Instructor unavailable periods in window — startAt/endAt are TIMESTAMP (local)
     const instrUnavails = await this.instrUnavailRepo
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.instructor', 'i')
       .where('i.id IN (:...ids)', { ids: instructorIds })
-      .andWhere('p.startAt < :end', { end: windowEnd })
-      .andWhere('p.endAt > :start', { start: now })
+      .andWhere('p.startAt < :windowEnd', { windowEnd: localWindowEnd })
+      .andWhere('p.endAt > :localNow', { localNow })
       .getMany();
 
     // E) Active bookings for these instructors in window
+    // startAt/endAt are TIMESTAMP (local); lockedUntil is TIMESTAMPTZ (utcNow)
     const instrBookings = await this.bookingRepo
       .createQueryBuilder('b')
       .innerJoinAndSelect('b.instructor', 'i')
       .where('i.id IN (:...ids)', { ids: instructorIds })
       .andWhere(
-        `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :now))`,
-        { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, now },
+        `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :utcNow))`,
+        { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, utcNow: now },
       )
-      .andWhere('b.startAt < :end', { end: windowEnd })
-      .andWhere('b.endAt > :start', { start: now })
+      .andWhere('b.startAt < :windowEnd', { windowEnd: localWindowEnd })
+      .andWhere('b.endAt > :localNow', { localNow })
       .getMany();
 
     // G) Vehicle data for SCHOOL_CAR
@@ -518,8 +564,8 @@ export class BookingService {
           .createQueryBuilder('vp')
           .innerJoinAndSelect('vp.vehicle', 'v')
           .where('v.id IN (:...ids)', { ids: vehicleIds })
-          .andWhere('vp.startAt < :end', { end: windowEnd })
-          .andWhere(`(vp.endAt IS NULL OR vp.endAt > :start)`, { start: now })
+          .andWhere('vp.startAt < :windowEnd', { windowEnd: localWindowEnd })
+          .andWhere(`(vp.endAt IS NULL OR vp.endAt > :localNow)`, { localNow })
           .getMany();
 
         vehicleBookings = await this.bookingRepo
@@ -527,11 +573,11 @@ export class BookingService {
           .innerJoinAndSelect('b.vehicle', 'v')
           .where('v.id IN (:...ids)', { ids: vehicleIds })
           .andWhere(
-            `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :now))`,
-            { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, now },
+            `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :utcNow))`,
+            { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, utcNow: now },
           )
-          .andWhere('b.startAt < :end', { end: windowEnd })
-          .andWhere('b.endAt > :start', { start: now })
+          .andWhere('b.startAt < :windowEnd', { windowEnd: localWindowEnd })
+          .andWhere('b.endAt > :localNow', { localNow })
           .getMany();
       }
     }
@@ -542,43 +588,37 @@ export class BookingService {
       slots: { date: string; dayName: string; startTime: string; endTime: string }[];
     }[] = [];
 
-    // Current moment expressed as a "local clock" value so UTC date arithmetic
-    // yields the school's local date — independent of Node.js process timezone.
-    const schoolNow = new Date(now.getTime() + SCHOOL_TZ_OFFSET_MS);
-
     for (const instructor of instructors) {
       const myUnavails = instrUnavails.filter((p) => p.instructor.id === instructor.id);
       const myBookings = instrBookings.filter((b) => b.instructor.id === instructor.id);
       const freeSlots: { date: string; dayName: string; startTime: string; endTime: string }[] = [];
 
       for (let dayOffset = 0; dayOffset < windowDays; dayOffset++) {
-        // UTC midnight that represents LOCAL midnight for (today + dayOffset).
-        // Using Date.UTC avoids any dependency on the process timezone.
+        // Midnight of (today + dayOffset) in local wall-clock frame (UTC components = local values).
         const localUTCMidnight = new Date(Date.UTC(
-          schoolNow.getUTCFullYear(),
-          schoolNow.getUTCMonth(),
-          schoolNow.getUTCDate() + dayOffset,
+          localNow.getUTCFullYear(),
+          localNow.getUTCMonth(),
+          localNow.getUTCDate() + dayOffset,
         ));
 
         const dayEnum = JS_DAY_MAP[localUTCMidnight.getUTCDay()];
         const avail = availByInstructorDay.get(`${instructor.id}:${dayEnum}`);
         if (!avail) continue;
 
-        // Parse local TIME strings "HH:MM:SS" and convert to UTC timestamps.
-        // e.g. '08:00:00' in UTC+3 → localUTCMidnight + 8h - 3h = +5h UTC
+        // Slot boundaries in local wall-clock frame — no offset subtraction needed.
         const [sh, sm] = avail.startTime.split(':').map(Number);
         const [eh, em] = avail.endTime.split(':').map(Number);
 
-        const availStart = new Date(localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000 - SCHOOL_TZ_OFFSET_MS);
-        const availEnd   = new Date(localUTCMidnight.getTime() + (eh * 60 + em) * 60_000 - SCHOOL_TZ_OFFSET_MS);
+        const availStart = new Date(localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000);
+        const availEnd   = new Date(localUTCMidnight.getTime() + (eh * 60 + em) * 60_000);
 
         let slotStart = new Date(availStart);
 
         while (slotStart.getTime() + durationMs <= availEnd.getTime()) {
           const slotEnd = new Date(slotStart.getTime() + durationMs);
 
-          // Skip past slots
-          if (slotStart <= now) {
+          // Skip past slots (compare against local now)
+          if (slotStart <= localNow) {
             slotStart = slotEnd;
             continue;
           }
@@ -651,90 +691,97 @@ export class BookingService {
     dto: CreateReceptionBookingDto,
     currentUser: AuthenticatedUser,
   ) {
-    try {
-      return await this.dataSource.transaction(async (em) => {
-        const now = new Date();
+    // Parse local wall-clock date+time directly — no timezone offset needed.
+    // Date.UTC ensures the result is independent of Node.js process timezone.
+    const [year, month, day] = dto.date.split('-').map(Number);
+    const [hour, minute] = dto.time.split(':').map(Number);
+    const startAt = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
 
-        const student = await em.findOne(Student, {
-          where: { id: dto.studentId },
-          relations: { user: true },
-        });
-        if (!student) throw new NotFoundException('Student not found');
+    const durationMin = await this.getNumericSetting('lesson_duration_minutes', 90);
+    const endAt = new Date(startAt.getTime() + durationMin * 60 * 1000);
 
-        const instructor = await em.findOne(Instructor, {
-          where: { id: dto.instructorId },
-          relations: { user: true },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (!instructor) throw new NotFoundException('Instructor not found');
+    // Fetch vehicle candidates outside the transaction (no pessimistic lock).
+    // The btree_gist EXCLUDE constraint is the real atomicity guard; if a vehicle
+    // gets claimed between this check and the INSERT, we catch 23P01 and retry.
+    const candidates: Array<Vehicle | null> =
+      dto.vehicleSource === VehicleSource.SCHOOL_CAR
+        ? await this.getVehicleCandidates(dto.trainingType, startAt, endAt)
+        : [null];
 
-        // Parse "YYYY-MM-DD HH:MM" (school local UTC+3) to a UTC Date.
-        // "+03:00" tells the parser this is Syria local time — it subtracts 3h to get UTC.
-        const startAt = new Date(`${dto.startAt}:00+03:00`);
-
-        const durationMin = await this.getNumericSetting('lesson_duration_minutes', 90);
-        const endAt = new Date(startAt.getTime() + durationMin * 60 * 1000);
-
-        // Step 1: re-validate slot inside the transaction
-        const slotOk = await this.validateSlotInTx(
-          em,
-          instructor.id,
-          startAt,
-          endAt,
-          dto.trainingType,
-          dto.vehicleSource,
-        );
-        if (!slotOk) throw new ConflictException('The selected time slot is not available');
-
-        // Step 2: reject if student has an active PENDING_PAYMENT booking
-        const pendingExists = await em
-          .createQueryBuilder(Booking, 'b')
-          .innerJoin('b.student', 's')
-          .where('s.id = :sid', { sid: student.id })
-          .andWhere('b.bookingStatus = :status', { status: BookingStatus.PENDING_PAYMENT })
-          .andWhere('b.lockedUntil > :now', { now })
-          .getCount();
-
-        if (pendingExists > 0) {
-          throw new BadRequestException('Student already has an active pending booking');
-        }
-
-        // Step 3: check for rebooking credit
-        const creditBooking = await em
-          .createQueryBuilder(Booking, 'b')
-          .innerJoin('b.student', 's')
-          .where('s.id = :sid', { sid: student.id })
-          .andWhere('b.bookingStatus = :status', { status: BookingStatus.CANCELLED })
-          .andWhere('b.paymentStatus = :pstatus', {
-            pstatus: PaymentStatus.DEPOSIT_AVAILABLE_FOR_REBOOKING,
-          })
-          .orderBy('b.createdAt', 'DESC')
-          .getOne();
-
-        // Find and lock a vehicle if SCHOOL_CAR
-        let vehicle: Vehicle | null = null;
-        if (dto.vehicleSource === VehicleSource.SCHOOL_CAR) {
-          vehicle = await this.findAndLockVehicle(em, dto.trainingType, startAt, endAt);
-          if (!vehicle) throw new ConflictException('No available vehicle for this time slot');
-        }
-
-        if (creditBooking) {
-          return this.createRebookingCreditBranch(
-            em, creditBooking, student, instructor, vehicle, dto, startAt, endAt, now,
-          );
-        }
-
-        return this.createNormalCashBranch(
-          em, student, instructor, vehicle, dto, startAt, endAt, now,
-        );
-      });
-    } catch (err: any) {
-      // btree_gist exclusion violation
-      if (err?.code === '23P01') {
-        throw new ConflictException('Booking conflicts with an existing reservation');
-      }
-      throw err;
+    if (dto.vehicleSource === VehicleSource.SCHOOL_CAR && candidates.length === 0) {
+      throw new ConflictException('No available vehicle for this time slot');
     }
+
+    for (const vehicle of candidates) {
+      try {
+        return await this.dataSource.transaction(async (em) => {
+          const now = new Date();
+
+          const student = await em.findOne(Student, {
+            where: { id: dto.studentId },
+            relations: { user: true },
+          });
+          if (!student) throw new NotFoundException('Student not found');
+
+          const instructor = await em.findOne(Instructor, {
+            where: { id: dto.instructorId },
+            relations: { user: true },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!instructor) throw new NotFoundException('Instructor not found');
+
+          const slotOk = await this.validateSlotInTx(
+            em, instructor.id, startAt, endAt, dto.trainingType, dto.vehicleSource,
+          );
+          if (!slotOk) throw new ConflictException('The selected time slot is not available');
+
+          const pendingExists = await em
+            .createQueryBuilder(Booking, 'b')
+            .innerJoin('b.student', 's')
+            .where('s.id = :sid', { sid: student.id })
+            .andWhere('b.bookingStatus = :status', { status: BookingStatus.PENDING_PAYMENT })
+            .andWhere('b.lockedUntil > :now', { now })
+            .getCount();
+          if (pendingExists > 0) {
+            throw new BadRequestException('Student already has an active pending booking');
+          }
+
+          const creditBooking = await em
+            .createQueryBuilder(Booking, 'b')
+            .innerJoin('b.student', 's')
+            .where('s.id = :sid', { sid: student.id })
+            .andWhere('b.bookingStatus = :status', { status: BookingStatus.CANCELLED })
+            .andWhere('b.paymentStatus = :pstatus', {
+              pstatus: PaymentStatus.DEPOSIT_AVAILABLE_FOR_REBOOKING,
+            })
+            .orderBy('b.createdAt', 'DESC')
+            .getOne();
+
+          if (creditBooking) {
+            if (dto.collectedAmount !== undefined && dto.collectedAmount !== null) {
+              throw new BadRequestException(
+                'Student has available rebooking credit — omit collectedAmount',
+              );
+            }
+            return this.createRebookingCreditBranch(
+              em, creditBooking, student, instructor, vehicle, dto, startAt, endAt, now,
+            );
+          }
+
+          return this.createNormalCashBranch(
+            em, student, instructor, vehicle, dto, startAt, endAt, now,
+          );
+        });
+      } catch (err: any) {
+        if (err?.code === '23P01') {
+          if (err?.constraint === 'ex_booking_vehicle_overlap') continue;
+          throw new ConflictException('Booking conflicts with an existing reservation');
+        }
+        throw err;
+      }
+    }
+
+    throw new ConflictException('No available vehicle for this time slot');
   }
 
   private async createRebookingCreditBranch(
@@ -958,7 +1005,7 @@ export class BookingService {
         const expense = await em.save(Expense, {
           category: ExpenseCategory.INSTRUCTOR,
           amount: instrPrice.toFixed(2),
-          expenseDate: now.toISOString().split('T')[0],
+          expenseDate: new Date(now.getTime() + SCHOOL_TZ_OFFSET_MS).toISOString().split('T')[0],
           status: ExpenseStatus.PAID,
           note: null,
           employee: null,
@@ -981,6 +1028,9 @@ export class BookingService {
     dto: CancelBookingDto,
     currentUser: AuthenticatedUser,
   ) {
+    // Capture student user outside the transaction so we can notify after commit.
+    let studentUser!: User;
+
     await this.dataSource.transaction(async (em) => {
       const booking = await em.findOne(Booking, {
         where: { id: bookingId },
@@ -1020,12 +1070,18 @@ export class BookingService {
         cancelledByUser: cancellingUser,
       } as BookingCancellation);
 
-      await this.notificationsService.sendAsync({
-        recipientUser: booking.student.user,
-        title: 'تم إلغاء الحجز',
-        body: `تم إلغاء درسك. السبب: ${dto.cancellationReason}. يرجى حجز موعد بديل.`,
-        notificationType: NotificationType.BOOKING_CANCELLED,
-      });
+      // Save student user reference — notification fires AFTER commit.
+      studentUser = booking.student.user;
+    });
+
+    // Notification sent only after the transaction successfully commits.
+    // This prevents the student from receiving a cancellation notice
+    // if the transaction rolls back.
+    await this.notificationsService.sendAsync({
+      recipientUser: studentUser,
+      title: 'تم إلغاء الحجز',
+      body: `تم إلغاء درسك. السبب: ${dto.cancellationReason}. يرجى حجز موعد بديل.`,
+      notificationType: NotificationType.BOOKING_CANCELLED,
     });
 
     return { message: 'Booking cancelled successfully', bookingId };
@@ -1033,7 +1089,7 @@ export class BookingService {
 
   // ─── Private Helpers ────────────────────────────────────────────────────────
 
-  /** Re-validates a slot inside an open transaction (steps C–G from spec §4). */
+  /** Re-validates a slot inside an open transaction. */
   private async validateSlotInTx(
     em: EntityManager,
     instructorId: number,
@@ -1042,11 +1098,9 @@ export class BookingService {
     trainingType: TrainingType,
     vehicleSource: VehicleSource,
   ): Promise<boolean> {
-    // Shift startAt to school local time to get the correct date and day-of-week.
-    const localStartAt = new Date(startAt.getTime() + SCHOOL_TZ_OFFSET_MS);
-    const dayEnum = JS_DAY_MAP[localStartAt.getUTCDay()];
+    // startAt is local wall-clock (TIMESTAMP); getUTC* returns local values directly.
+    const dayEnum = JS_DAY_MAP[startAt.getUTCDay()];
 
-    // Check weekly availability covers this slot
     const avail = await em.findOne(InstructorWeeklyAvailability, {
       where: { instructor: { id: instructorId }, dayOfWeek: dayEnum },
     });
@@ -1054,85 +1108,85 @@ export class BookingService {
 
     const [sh, sm] = avail.startTime.split(':').map(Number);
     const [eh, em2] = avail.endTime.split(':').map(Number);
-    // UTC midnight of the local date of startAt
     const localUTCMidnight = new Date(Date.UTC(
-      localStartAt.getUTCFullYear(),
-      localStartAt.getUTCMonth(),
-      localStartAt.getUTCDate(),
+      startAt.getUTCFullYear(),
+      startAt.getUTCMonth(),
+      startAt.getUTCDate(),
     ));
-    const availStart = new Date(localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000 - SCHOOL_TZ_OFFSET_MS);
-    const availEnd   = new Date(localUTCMidnight.getTime() + (eh * 60 + em2) * 60_000 - SCHOOL_TZ_OFFSET_MS);
+    const availStart = new Date(localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000);
+    const availEnd   = new Date(localUTCMidnight.getTime() + (eh * 60 + em2) * 60_000);
 
     if (startAt < availStart || endAt > availEnd) return false;
 
-    // D) Instructor unavailable periods
+    // D) Instructor unavailable periods — startAt/endAt are TIMESTAMP (local frame)
     const instrUnavail = await em
       .createQueryBuilder(InstructorUnavailablePeriod, 'p')
       .innerJoin('p.instructor', 'i')
       .where('i.id = :id', { id: instructorId })
-      .andWhere('p.startAt < :end', { end: endAt })
-      .andWhere('p.endAt > :start', { start: startAt })
+      .andWhere('p.startAt < :endAt', { endAt })
+      .andWhere('p.endAt > :startAt', { startAt })
       .getCount();
     if (instrUnavail > 0) return false;
 
-    // E) Active bookings for this instructor
+    // E) Active bookings — startAt/endAt are TIMESTAMP; lockedUntil is TIMESTAMPTZ
     const instrConflict = await em
       .createQueryBuilder(Booking, 'b')
       .innerJoin('b.instructor', 'i')
       .where('i.id = :id', { id: instructorId })
       .andWhere(
-        `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :now))`,
-        { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, now: new Date() },
+        `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :utcNow))`,
+        { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, utcNow: new Date() },
       )
-      .andWhere('b.startAt < :end', { end: endAt })
-      .andWhere('b.endAt > :start', { start: startAt })
+      .andWhere('b.startAt < :endAt', { endAt })
+      .andWhere('b.endAt > :startAt', { startAt })
       .getCount();
     if (instrConflict > 0) return false;
 
     return true;
   }
 
-  /** Finds and pessimistically locks the first available vehicle for the slot. */
-  private async findAndLockVehicle(
-    em: EntityManager,
+  /** Returns vehicles of the right type that appear free for [startAt, endAt).
+   *  No lock is taken — the btree_gist EXCLUDE constraint is the real guard.
+   *  If a candidate is claimed between this read and the INSERT, the caller
+   *  catches 23P01 on ex_booking_vehicle_overlap and retries with the next one. */
+  private async getVehicleCandidates(
     trainingType: TrainingType,
     startAt: Date,
     endAt: Date,
-  ): Promise<Vehicle | null> {
+  ): Promise<Vehicle[]> {
     const vehicleType =
       trainingType === TrainingType.MANUAL ? VehicleType.MANUAL : VehicleType.AUTOMATIC;
 
-    const vehicles = await em.find(Vehicle, {
+    // Blocked by active bookings (start_at/end_at are TIMESTAMP; locked_until is TIMESTAMPTZ)
+    const bookedRows: { vehicle_id: string }[] = await this.dataSource.query(
+      `SELECT DISTINCT vehicle_id
+       FROM booking
+       WHERE vehicle_id IS NOT NULL
+         AND (booking_status = 'BOOKED'
+              OR (booking_status = 'PENDING_PAYMENT' AND locked_until > $1))
+         AND start_at < $2
+         AND end_at > $3`,
+      [new Date(), endAt, startAt],
+    );
+
+    // Blocked by unavailable periods (start_at/end_at are TIMESTAMP)
+    const unavailRows: { vehicle_id: string }[] = await this.dataSource.query(
+      `SELECT DISTINCT vehicle_id
+       FROM vehicle_unavailable_periods
+       WHERE start_at < $1
+         AND (end_at IS NULL OR end_at > $2)`,
+      [endAt, startAt],
+    );
+
+    const blockedIds = new Set<number>([
+      ...bookedRows.map((r) => Number(r.vehicle_id)),
+      ...unavailRows.map((r) => Number(r.vehicle_id)),
+    ]);
+
+    const vehicles = await this.vehicleRepo.find({
       where: { type: vehicleType, status: VehicleStatus.ACTIVE },
-      lock: { mode: 'pessimistic_write' },
     });
 
-    for (const vehicle of vehicles) {
-      const unavailCount = await em
-        .createQueryBuilder(VehicleUnavailablePeriod, 'vp')
-        .innerJoin('vp.vehicle', 'v')
-        .where('v.id = :id', { id: vehicle.id })
-        .andWhere('vp.startAt < :end', { end: endAt })
-        .andWhere(`(vp.endAt IS NULL OR vp.endAt > :start)`, { start: startAt })
-        .getCount();
-
-      if (unavailCount > 0) continue;
-
-      const conflictCount = await em
-        .createQueryBuilder(Booking, 'b')
-        .innerJoin('b.vehicle', 'v')
-        .where('v.id = :id', { id: vehicle.id })
-        .andWhere(
-          `(b.bookingStatus = :booked OR (b.bookingStatus = :pending AND b.lockedUntil > :now))`,
-          { booked: BookingStatus.BOOKED, pending: BookingStatus.PENDING_PAYMENT, now: new Date() },
-        )
-        .andWhere('b.startAt < :end', { end: endAt })
-        .andWhere('b.endAt > :start', { start: startAt })
-        .getCount();
-
-      if (conflictCount === 0) return vehicle;
-    }
-
-    return null;
+    return vehicles.filter((v) => !blockedIds.has(v.id));
   }
 }

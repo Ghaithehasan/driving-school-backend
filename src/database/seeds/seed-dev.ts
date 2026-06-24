@@ -293,11 +293,16 @@ async function seed() {
       }
       for (const code of codes) {
         const perm = permMap[code];
-        const exists = await rolePermRepo.findOne({
-          where: { role: { id: role.id }, permission: { id: perm.id } },
-        });
-        if (!exists) {
+        const count = await rolePermRepo
+          .createQueryBuilder('rp')
+          .innerJoin('rp.role', 'r')
+          .innerJoin('rp.permission', 'p')
+          .where('r.id = :roleId', { roleId: role.id })
+          .andWhere('p.id = :permId', { permId: perm.id })
+          .getCount();
+        if (count === 0) {
           await rolePermRepo.save(rolePermRepo.create({ role, permission: perm }));
+          console.log(`    ➕ ${roleTitle} ← ${code}`);
         }
       }
       console.log(`  ✅ ${roleTitle} — ${codes.length} صلاحية`);

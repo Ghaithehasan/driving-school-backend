@@ -3,9 +3,9 @@ import { CancellationParty } from '../../common/enums/index';
 
 export class CancelBookingDto {
   @IsEnum(CancellationParty)
-  cancellationParty: CancellationParty;
+  cancellationParty!: CancellationParty;
 
   @IsString()
   @MaxLength(255)
-  cancellationReason: string;
+  cancellationReason!: string;
 }

@@ -14,10 +14,10 @@ export class VehicleUnavailablePeriod {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id!: number;
 
-  @Column({ name: 'start_at', type: 'timestamptz' })
+  @Column({ name: 'start_at', type: 'timestamp' })
   startAt!: Date;
 
-  @Column({ name: 'end_at', type: 'timestamptz', nullable: true })
+  @Column({ name: 'end_at', type: 'timestamp', nullable: true })
   endAt!: Date | null;
 
   @Column({

@@ -13,10 +13,10 @@ export class InstructorUnavailablePeriod {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id: number;
 
-  @Column({ name: 'start_at', type: 'timestamptz' })
+  @Column({ name: 'start_at', type: 'timestamp' })
   startAt: Date;
 
-  @Column({ name: 'end_at', type: 'timestamptz' })
+  @Column({ name: 'end_at', type: 'timestamp' })
   endAt: Date;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
