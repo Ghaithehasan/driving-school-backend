@@ -10,13 +10,13 @@ import { StudentPayment } from './student-payment.entity';
 @Entity('shamcash_transactions')
 export class ShamcashTransaction {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'transaction_id', type: 'varchar', length: 100, unique: true })
-  transactionId: string;
+  transactionId!: string;
 
   @Column({ name: 'sender_account', type: 'varchar', length: 50, nullable: true })
-  senderAccount: string | null;
+  senderAccount!: string | null;
 
   @Column({
     name: 'receiver_account',
@@ -24,21 +24,21 @@ export class ShamcashTransaction {
     length: 50,
     nullable: true,
   })
-  receiverAccount: string | null;
+  receiverAccount!: string | null;
 
   @Column({ type: 'numeric', precision: 10, scale: 2 })
-  amount: string;
+  amount!: string;
 
   @Column({ name: 'occurred_at', type: 'timestamptz', nullable: true })
-  occurredAt: Date | null;
+  occurredAt!: Date | null;
 
   @Column({ name: 'verified_at', type: 'timestamptz' })
-  verifiedAt: Date;
+  verifiedAt!: Date;
 
   @Column({ name: 'raw_payload', type: 'jsonb', nullable: true })
-  rawPayload: Record<string, unknown> | null;
+  rawPayload!: Record<string, unknown> | null;
 
   @OneToOne(() => StudentPayment, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'student_payment_id' })
-  studentPayment: StudentPayment;
+  studentPayment!: StudentPayment;
 }

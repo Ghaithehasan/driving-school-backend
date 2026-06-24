@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { RoleTitle } from '../../common/enums/index';
+import { Repository } from 'typeorm';
 import { RolePermission } from '../../roles/role-permission.entity';
 import { PERMISSIONS_KEY } from '../decorators/roles.decorator';
 import { AuthenticatedUser } from '../interfaces/jwt-payload.interface';
@@ -32,13 +31,17 @@ export class PermissionGuard implements CanActivate {
     const user = request.user as AuthenticatedUser | undefined;
 
     if (!user) throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');
+    if (!user.roles?.length) throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');
 
-    const rolePermissions = await this.rolePermissionRepo.find({
-      where: { role: { title: In(user.roles as RoleTitle[]) } },
-      relations: { permission: true },
-    });
+    const rows: { code: string }[] = await this.rolePermissionRepo
+      .createQueryBuilder('rp')
+      .innerJoin('rp.permission', 'p')
+      .innerJoin('rp.role', 'r')
+      .select('p.code', 'code')
+      .where('r.title IN (:...roles)', { roles: user.roles })
+      .getRawMany();
 
-    const userPermissions = rolePermissions.map((rp) => rp.permission.code);
+    const userPermissions = rows.map((r) => r.code);
 
     if (!required.every((p) => userPermissions.includes(p))) {
       throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');

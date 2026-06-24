@@ -12,6 +12,9 @@ import { InstructorsModule } from './instructors/instructors.module';
 import { EmployeesModule } from './employees/employees.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
+import { BookingModule } from './booking/booking.module';
+import { CertificatesModule } from './certificates/certificates.module';
+import { StudentChargeModule } from './payments/student-charge/student-charge.module';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { VehiclesModule } from './vehicles/vehicles.module';
     EmployeesModule,
     VehiclesModule,
     NotificationsModule,
+    BookingModule,
+    CertificatesModule,
+    StudentChargeModule,
   ],
   controllers: [AppController],
   providers: [

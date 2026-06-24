@@ -35,10 +35,10 @@ export class Booking {
   @Column({ name: 'training_type', type: 'enum', enum: TrainingType })
   trainingType: TrainingType;
 
-  @Column({ name: 'start_at', type: 'timestamptz' })
+  @Column({ name: 'start_at', type: 'timestamp' })
   startAt: Date;
 
-  @Column({ name: 'end_at', type: 'timestamptz' })
+  @Column({ name: 'end_at', type: 'timestamp' })
   endAt: Date;
 
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
