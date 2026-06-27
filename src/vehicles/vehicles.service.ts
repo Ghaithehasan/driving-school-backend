@@ -9,6 +9,7 @@ import {
   BookingStatus,
   CancellationParty,
   ExpenseCategory,
+  ExpenseStatus,
   NotificationType,
   PaymentStatus,
   VehicleExpenseReason,
@@ -29,6 +30,8 @@ import { SendToMaintenanceDto } from './dto/send-to-maintenance.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleUnavailablePeriod } from './vehicle-unavailable-period.entity';
 import { Vehicle } from './vehicle.entity';
+
+const SCHOOL_TZ_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 @Injectable()
 export class VehiclesService {
@@ -184,7 +187,7 @@ export class VehiclesService {
     const vehicle = await this.vehicleRepo.findOne({ where: { id } });
     if (!vehicle) throw new NotFoundException('المركبة غير موجودة');
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = this.getSchoolLocalDate();
     const totalAmount = +(dto.liters * dto.pricePerLiter).toFixed(2);
 
     await this.dataSource.transaction(async (em) => {
@@ -192,7 +195,7 @@ export class VehiclesService {
         category:    ExpenseCategory.VEHICLE,
         amount:      String(totalAmount),
         expenseDate: today,
-        status:      'PAID' as any,
+        status:      ExpenseStatus.PAID,
         note:        dto.note ?? null,
         employee:    null,
       });
@@ -304,7 +307,7 @@ export class VehiclesService {
       where: { user: { id: performedByUserId } },
     });
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = this.getSchoolLocalDate();
 
     await this.dataSource.transaction(async (em) => {
       openPeriod.endAt = new Date();
@@ -319,7 +322,7 @@ export class VehiclesService {
           category:    ExpenseCategory.VEHICLE,
           amount:      String(dto.maintenanceCost),
           expenseDate: today,
-          status:      dto.expenseStatus as any,
+          status:      dto.expenseStatus,
           note:        dto.notes ?? null,
           employee:    employee ?? null,
         });
@@ -346,5 +349,9 @@ export class VehiclesService {
       type:        v.type,
       status:      v.status,
     };
+  }
+
+  private getSchoolLocalDate(): string {
+    return new Date(Date.now() + SCHOOL_TZ_OFFSET_MS).toISOString().split('T')[0];
   }
 }

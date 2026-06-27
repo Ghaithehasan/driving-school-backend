@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import { Student } from './student.entity';
 import { FindStudentsQueryDto } from './dto/find-students-query.dto';
 
@@ -21,12 +21,18 @@ export class StudentsService {
       qb.andWhere('student.studentStatus = :status', { status: query.status });
     }
 
-    if (query.search) {
+    const searchTerms = this.getSearchTerms(query.search);
+    searchTerms.forEach((term, index) => {
+      const termParam = `searchTerm${index}`;
+
       qb.andWhere(
-        '(user.name ILIKE :search OR user.phone ILIKE :search)',
-        { search: `%${query.search}%` },
+        new Brackets((orQb) => {
+          orQb.where(`user.name ILIKE :${termParam}`, {
+            [termParam]: `%${term}%`,
+          });
+        }),
       );
-    }
+    });
 
     const students = await qb.getMany();
 
@@ -57,5 +63,10 @@ export class StudentsService {
       studentStatus: student.studentStatus,
       accountStatus: student.user.accountStatus,
     };
+  }
+
+  private getSearchTerms(search?: string): string[] {
+    if (!search) return [];
+    return search.trim().split(/\s+/).filter(Boolean);
   }
 }
