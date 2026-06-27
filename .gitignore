@@ -16,9 +16,11 @@ lerna-debug.log*
 .DS_Store
 TEAMMATE-CHANGES.md
 # Tests
+TIME_HANDLING_NOTES (1).md
 /coverage
 /.nyc_output
-
+driving_school_scope_RTL_fixed_professional.pdf
+تحديد نطاق المشروع.md
 # IDEs and editors
 /.idea
 .project
@@ -56,3 +58,6 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 driving_school_build_dataBase.md
+
+
+docs
