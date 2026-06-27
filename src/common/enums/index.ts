@@ -93,6 +93,7 @@ export enum DayOfWeek {
 }
 
 export enum ChargeReason {
+  LESSON = 'LESSON',
   LESSON_DEPOSIT = 'LESSON_DEPOSIT',
   LESSON_REMAINDER = 'LESSON_REMAINDER',
   CERTIFICATE_FEE = 'CERTIFICATE_FEE',

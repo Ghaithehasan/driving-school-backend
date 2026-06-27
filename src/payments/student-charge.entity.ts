@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -13,6 +14,10 @@ import { CertificateExamResult } from '../certificates/certificate-exam-result.e
 import { Student } from '../students/student.entity';
 
 @Entity('student_charges')
+@Index('UQ_student_charges_booking', ['booking'], {
+  unique: true,
+  where: '"booking_id" IS NOT NULL',
+})
 export class StudentCharge {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id!: number;

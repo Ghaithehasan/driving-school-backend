@@ -1,254 +1,629 @@
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class CreateInitialSchema1781915063011 implements MigrationInterface {
-    name = 'CreateInitialSchema1781915063011'
+  name = 'CreateInitialSchema1781915063011';
 
-    public async up(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`CREATE TYPE "public"."users_account_status_enum" AS ENUM('ACTIVE', 'BLOCKED', 'ARCHIVED')`);
-        await queryRunner.query(`CREATE TABLE "users" ("id" BIGSERIAL NOT NULL, "name" character varying(100) NOT NULL, "phone" character varying(20) NOT NULL, "password_hash" character varying(255), "must_change_password" boolean NOT NULL DEFAULT true, "token_version" integer NOT NULL DEFAULT '0', "account_status" "public"."users_account_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_a000cca60bcf04454e727699490" UNIQUE ("phone"), CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."auth_otp_codes_purpose_enum" AS ENUM('STUDENT_LOGIN', 'PHONE_VERIFICATION', 'PASSWORD_RESET')`);
-        await queryRunner.query(`CREATE TABLE "auth_otp_codes" ("id" BIGSERIAL NOT NULL, "phone" character varying(20) NOT NULL, "code_hash" character varying(255) NOT NULL, "purpose" "public"."auth_otp_codes_purpose_enum" NOT NULL, "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "consumed_at" TIMESTAMP WITH TIME ZONE, "attempts_count" integer NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "user_id" bigint, CONSTRAINT "PK_83b7cfd3097c535e8752e8c208a" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "auth_sessions" ("id" BIGSERIAL NOT NULL, "refresh_token_hash" character varying(255) NOT NULL, "device_name" character varying(120), "ip_address" character varying(80), "user_agent" text, "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "revoked_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "user_id" bigint NOT NULL, CONSTRAINT "PK_641507381f32580e8479efc36cd" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."instructors_gender_enum" AS ENUM('MALE', 'FEMALE')`);
-        await queryRunner.query(`CREATE TYPE "public"."instructors_instructor_type_enum" AS ENUM('MANUAL', 'AUTOMATIC', 'BOTH')`);
-        await queryRunner.query(`CREATE TABLE "instructors" ("id" BIGSERIAL NOT NULL, "gender" "public"."instructors_gender_enum" NOT NULL, "instructor_type" "public"."instructors_instructor_type_enum" NOT NULL, "user_id" bigint NOT NULL, CONSTRAINT "REL_2c06003dbc501aa07744f11e54" UNIQUE ("user_id"), CONSTRAINT "PK_95e3da69ca76176ea4ab8435098" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."students_student_status_enum" AS ENUM('PASSED', 'FAILED', 'IN_TRAINING', 'CERTIFICATE_SEEKER')`);
-        await queryRunner.query(`CREATE TABLE "students" ("id" BIGSERIAL NOT NULL, "student_status" "public"."students_student_status_enum" NOT NULL, "user_id" bigint NOT NULL, CONSTRAINT "REL_fb3eff90b11bddf7285f9b4e28" UNIQUE ("user_id"), CONSTRAINT "PK_7d7f07271ad4ce999880713f05e" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."vehicles_type_enum" AS ENUM('MANUAL', 'AUTOMATIC')`);
-        await queryRunner.query(`CREATE TYPE "public"."vehicles_status_enum" AS ENUM('ACTIVE', 'INACTIVE', 'ARCHIVED')`);
-        await queryRunner.query(`CREATE TABLE "vehicles" ("id" BIGSERIAL NOT NULL, "plate_number" character varying(20) NOT NULL, "model" character varying(50), "color" character varying(30), "type" "public"."vehicles_type_enum" NOT NULL, "status" "public"."vehicles_status_enum" NOT NULL, "admin_notes" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_a7eeeb4b551b2629dd9ee964134" UNIQUE ("plate_number"), CONSTRAINT "PK_18d8646b59304dce4af3a9e35b6" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."booking_vehicle_source_enum" AS ENUM('SCHOOL_CAR', 'STUDENT_CAR')`);
-        await queryRunner.query(`CREATE TYPE "public"."booking_booking_status_enum" AS ENUM('PENDING_PAYMENT', 'BOOKED', 'COMPLETED', 'NO_SHOW', 'CANCELLED', 'EXPIRED')`);
-        await queryRunner.query(`CREATE TYPE "public"."booking_payment_status_enum" AS ENUM('PENDING_DEPOSIT', 'DEPOSIT_PAID', 'FULLY_PAID', 'DEPOSIT_NON_REFUNDABLE', 'DEPOSIT_AVAILABLE_FOR_REBOOKING', 'DEPOSIT_USED_IN_REBOOKING')`);
-        await queryRunner.query(`CREATE TYPE "public"."booking_training_type_enum" AS ENUM('MANUAL', 'AUTOMATIC')`);
-        await queryRunner.query(`CREATE TABLE "booking" ("id" BIGSERIAL NOT NULL, "vehicle_source" "public"."booking_vehicle_source_enum" NOT NULL, "booking_status" "public"."booking_booking_status_enum" NOT NULL, "payment_status" "public"."booking_payment_status_enum" NOT NULL, "training_type" "public"."booking_training_type_enum" NOT NULL, "start_at" TIMESTAMP WITH TIME ZONE NOT NULL, "end_at" TIMESTAMP WITH TIME ZONE NOT NULL, "locked_until" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "student_id" bigint NOT NULL, "instructor_id" bigint NOT NULL, "vehicle_id" bigint, "replaced_booking_id" bigint, CONSTRAINT "REL_9689ded8014ca12a5e1ccbce7e" UNIQUE ("replaced_booking_id"), CONSTRAINT "PK_49171efc69702ed84c812f33540" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."booking_cancellations_cancellation_party_enum" AS ENUM('STUDENT', 'VEHICLE', 'INSTRUCTOR', 'SCHOOL')`);
-        await queryRunner.query(`CREATE TABLE "booking_cancellations" ("id" BIGSERIAL NOT NULL, "cancellation_party" "public"."booking_cancellations_cancellation_party_enum" NOT NULL, "cancellation_reason" character varying(255), "cancelled_at" TIMESTAMP WITH TIME ZONE NOT NULL, "booking_id" bigint NOT NULL, "cancelled_by_user_id" bigint, CONSTRAINT "REL_19888a8d8875acfc9568cc52a5" UNIQUE ("booking_id"), CONSTRAINT "PK_8bb840ff63f3a96ed3a75c4bfef" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."lesson_price_instructor_gender_enum" AS ENUM('MALE', 'FEMALE')`);
-        await queryRunner.query(`CREATE TYPE "public"."lesson_price_training_type_enum" AS ENUM('MANUAL', 'AUTOMATIC')`);
-        await queryRunner.query(`CREATE TYPE "public"."lesson_price_vehicle_source_enum" AS ENUM('SCHOOL_CAR', 'STUDENT_CAR')`);
-        await queryRunner.query(`CREATE TABLE "lesson_price" ("id" BIGSERIAL NOT NULL, "instructor_gender" "public"."lesson_price_instructor_gender_enum" NOT NULL, "training_type" "public"."lesson_price_training_type_enum" NOT NULL, "vehicle_source" "public"."lesson_price_vehicle_source_enum" NOT NULL, "price" numeric(10,2) NOT NULL, "effective_from" date NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_2542c2c50387d9738f8be2b4c60" UNIQUE ("instructor_gender", "training_type", "vehicle_source", "effective_from"), CONSTRAINT "PK_37b360dbce374ede4bbc91ac0e4" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."certificates_category_enum" AS ENUM('B', 'B1', 'C', 'D')`);
-        await queryRunner.query(`CREATE TYPE "public"."certificates_request_status_enum" AS ENUM('WAITING_FOR_SERVICE_FEE', 'WAITING_FOR_TRAINING_SCHEDULE', 'IN_GOVERNMENT_TRAINING', 'WAITING_FOR_PRACTICAL_EXAM', 'WAITING_FOR_THEORETICAL_EXAM', 'COMPLETED', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "certificates" ("id" BIGSERIAL NOT NULL, "category" "public"."certificates_category_enum" NOT NULL, "request_status" "public"."certificates_request_status_enum" NOT NULL, "personal_photo_url" character varying(500) NOT NULL, "transport_requested" boolean NOT NULL, "requested_at" TIMESTAMP WITH TIME ZONE NOT NULL, "student_id" bigint NOT NULL, CONSTRAINT "PK_e4c7e31e2144300bea7d89eb165" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."certificate_exam_results_exam_type_enum" AS ENUM('THEORY', 'PRACTICAL')`);
-        await queryRunner.query(`CREATE TYPE "public"."certificate_exam_results_exam_result_enum" AS ENUM('PASS', 'FAIL', 'ABSENT')`);
-        await queryRunner.query(`CREATE TABLE "certificate_exam_results" ("id" BIGSERIAL NOT NULL, "exam_type" "public"."certificate_exam_results_exam_type_enum" NOT NULL, "attempt_number" smallint NOT NULL, "scheduled_at" TIMESTAMP WITH TIME ZONE, "exam_result" "public"."certificate_exam_results_exam_result_enum", "result_recorded_at" TIMESTAMP WITH TIME ZONE, "certificate_id" bigint NOT NULL, CONSTRAINT "PK_5f24f89ce755c6e698530141c74" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "certificate_training_sessions" ("id" BIGSERIAL NOT NULL, "session_number" smallint NOT NULL, "scheduled_at" TIMESTAMP WITH TIME ZONE, "certificate_id" bigint NOT NULL, CONSTRAINT "PK_b39afe422a6b607801543b41750" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "employees" ("id" BIGSERIAL NOT NULL, "hire_date" date, "monthly_salary" numeric(10,2), "resign_date" date, "user_id" bigint NOT NULL, CONSTRAINT "REL_2d83c53c3e553a48dadb9722e3" UNIQUE ("user_id"), CONSTRAINT "PK_b9535a98350d5b26e7eb0c26af4" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."expenses_category_enum" AS ENUM('VEHICLE', 'INSTRUCTOR', 'EMPLOYEE', 'GENERAL')`);
-        await queryRunner.query(`CREATE TYPE "public"."expenses_status_enum" AS ENUM('PAID', 'UNPAID')`);
-        await queryRunner.query(`CREATE TABLE "expenses" ("id" BIGSERIAL NOT NULL, "category" "public"."expenses_category_enum" NOT NULL, "amount" numeric(10,2) NOT NULL, "expense_date" date NOT NULL, "status" "public"."expenses_status_enum" NOT NULL, "note" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "employee_id" bigint, CONSTRAINT "PK_94c3ceb17e3140abc9282c20610" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."expenses_employee_type_enum" AS ENUM('SALARY', 'BONUS', 'OTHER')`);
-        await queryRunner.query(`CREATE TABLE "expenses_employee" ("id" BIGSERIAL NOT NULL, "type" "public"."expenses_employee_type_enum" NOT NULL, "month" date NOT NULL, "employee_id" bigint NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_8c8a35555b949822ba2369dd47" UNIQUE ("expense_id"), CONSTRAINT "PK_2f4f5d1c1e4243899954c63b391" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."expenses_general_type_enum" AS ENUM('WATER', 'ELECTRICITY', 'INTERNET', 'KITCHEN', 'SUPPLIES', 'OTHER')`);
-        await queryRunner.query(`CREATE TABLE "expenses_general" ("id" BIGSERIAL NOT NULL, "type" "public"."expenses_general_type_enum" NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_e9039d3574fd23996198229ef4" UNIQUE ("expense_id"), CONSTRAINT "PK_d0db90ca4010ae5cba47d2df22f" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "expenses_instructor" ("id" BIGSERIAL NOT NULL, "booking_id" bigint NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_ea53c876604f7c2f8a5829cc7b" UNIQUE ("booking_id"), CONSTRAINT "REL_1b50921e9fe137d4ba1e2048ae" UNIQUE ("expense_id"), CONSTRAINT "PK_f221296876dc14e7ef5ae345b29" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."expenses_vehicle_reason_enum" AS ENUM('MAINTENANCE', 'GAS', 'INSURANCE', 'OTHER')`);
-        await queryRunner.query(`CREATE TABLE "expenses_vehicle" ("id" BIGSERIAL NOT NULL, "reason" "public"."expenses_vehicle_reason_enum" NOT NULL, "liters" numeric(6,2), "vehicle_id" bigint NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_bc7375ae5c3e5e1d039195fb9e" UNIQUE ("expense_id"), CONSTRAINT "PK_5fc8d9c2e4f6105eb9ccbae8f38" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."instructor_price_type_enum" AS ENUM('MALE', 'FEMALE')`);
-        await queryRunner.query(`CREATE TABLE "instructor_price" ("id" BIGSERIAL NOT NULL, "type" "public"."instructor_price_type_enum" NOT NULL, "price" numeric(10,2) NOT NULL, "effective_from" date NOT NULL, CONSTRAINT "UQ_e3fbca7e02682d5bcca5f962b1a" UNIQUE ("type", "effective_from"), CONSTRAINT "PK_4bd165ab637bc2dfd48b2f00647" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "instructor_schedule_publications" ("id" BIGSERIAL NOT NULL, "schedule_date" date NOT NULL, "published_at" TIMESTAMP WITH TIME ZONE NOT NULL, "first_published_booking_start_at" TIMESTAMP WITH TIME ZONE, "instructor_id" bigint NOT NULL, "created_by_employee_id" bigint, CONSTRAINT "UQ_dc7a5f643cdc949827880d35b52" UNIQUE ("instructor_id", "schedule_date"), CONSTRAINT "PK_acf3f5bdcd958fbfbb26347e16c" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "instructor_unavailable_periods" ("id" BIGSERIAL NOT NULL, "start_at" TIMESTAMP WITH TIME ZONE NOT NULL, "end_at" TIMESTAMP WITH TIME ZONE NOT NULL, "reason" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "instructor_id" bigint NOT NULL, CONSTRAINT "PK_36524838a69407c6bc119372db4" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."instructor_weekly_availabilities_day_of_week_enum" AS ENUM('SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI')`);
-        await queryRunner.query(`CREATE TABLE "instructor_weekly_availabilities" ("id" BIGSERIAL NOT NULL, "day_of_week" "public"."instructor_weekly_availabilities_day_of_week_enum" NOT NULL, "start_time" TIME NOT NULL, "end_time" TIME NOT NULL, "instructor_id" bigint NOT NULL, CONSTRAINT "UQ_9bb6b8f12e2ca8c403591eab6c7" UNIQUE ("instructor_id", "day_of_week", "start_time"), CONSTRAINT "PK_398c35a14e70440b866cd87a8fb" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."notifications_notification_type_enum" AS ENUM('BOOKING_CONFIRMED', 'BOOKING_CANCELLED', 'BOOKING_EXPIRED', 'PAYMENT_ACCEPTED', 'PAYMENT_REJECTED', 'CERTIFICATE_STATUS_CHANGED', 'INSTRUCTOR_SCHEDULE', 'GENERAL')`);
-        await queryRunner.query(`CREATE TYPE "public"."notifications_channel_enum" AS ENUM('IN_APP', 'SMS', 'PUSH')`);
-        await queryRunner.query(`CREATE TYPE "public"."notifications_status_enum" AS ENUM('PENDING', 'SENT', 'FAILED', 'READ')`);
-        await queryRunner.query(`CREATE TABLE "notifications" ("id" BIGSERIAL NOT NULL, "title" character varying(150) NOT NULL, "body" text NOT NULL, "notification_type" "public"."notifications_notification_type_enum" NOT NULL, "channel" "public"."notifications_channel_enum" NOT NULL, "status" "public"."notifications_status_enum" NOT NULL, "sent_at" TIMESTAMP WITH TIME ZONE, "read_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "recipient_user_id" bigint NOT NULL, CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."student_charges_charge_reason_enum" AS ENUM('LESSON_DEPOSIT', 'LESSON_REMAINDER', 'CERTIFICATE_FEE', 'TRANSPORT_LECTURE', 'TRANSPORT_EXAM', 'REEXAM_THEORY', 'REEXAM_PRACTICAL', 'OTHER')`);
-        await queryRunner.query(`CREATE TYPE "public"."student_charges_charge_status_enum" AS ENUM('PAID', 'UNPAID', 'PARTIALLY_PAID', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "student_charges" ("id" BIGSERIAL NOT NULL, "charge_reason" "public"."student_charges_charge_reason_enum" NOT NULL, "amount_due" numeric(10,2) NOT NULL, "charge_status" "public"."student_charges_charge_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "due_at" date, "student_id" bigint NOT NULL, "booking_id" bigint, "certificate_id" bigint, "certificate_exam_result_id" bigint, CONSTRAINT "PK_b102cdbafeee6011d423e409b83" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."student_payments_payment_method_enum" AS ENUM('CASH', 'SHAM_CASH')`);
-        await queryRunner.query(`CREATE TABLE "student_payments" ("id" BIGSERIAL NOT NULL, "amount_paid" numeric(10,2) NOT NULL, "payment_method" "public"."student_payments_payment_method_enum" NOT NULL, "received_at" TIMESTAMP WITH TIME ZONE NOT NULL, "student_charge_id" bigint NOT NULL, CONSTRAINT "PK_e7505845c50977798312c4af0aa" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "shamcash_transactions" ("id" BIGSERIAL NOT NULL, "transaction_id" character varying(100) NOT NULL, "sender_account" character varying(50), "receiver_account" character varying(50), "amount" numeric(10,2) NOT NULL, "occurred_at" TIMESTAMP WITH TIME ZONE, "verified_at" TIMESTAMP WITH TIME ZONE NOT NULL, "raw_payload" jsonb, "student_payment_id" bigint NOT NULL, CONSTRAINT "UQ_59e7d6973ecf50f90a7c6fec6b7" UNIQUE ("transaction_id"), CONSTRAINT "REL_34aa92bd6c20de5978564b3071" UNIQUE ("student_payment_id"), CONSTRAINT "PK_0a75e88b1cea222b6fa57e50689" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "permissions" ("id" BIGSERIAL NOT NULL, "code" character varying(80) NOT NULL, "description" character varying(255), "module" character varying(60), CONSTRAINT "UQ_8dad765629e83229da6feda1c1d" UNIQUE ("code"), CONSTRAINT "PK_920331560282b8bd21bb02290df" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."roles_title_enum" AS ENUM('MANAGER', 'RECEPTIONIST', 'ACCOUNTANT', 'INSTRUCTOR', 'STUDENT')`);
-        await queryRunner.query(`CREATE TABLE "roles" ("id" BIGSERIAL NOT NULL, "title" "public"."roles_title_enum" NOT NULL, "description" character varying(255), CONSTRAINT "UQ_08e86fada7ae67b1689f948e83e" UNIQUE ("title"), CONSTRAINT "PK_c1433d71a4838793a49dcad46ab" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "role_permissions" ("id" BIGSERIAL NOT NULL, "role_id" bigint NOT NULL, "permission_id" bigint NOT NULL, CONSTRAINT "UQ_25d24010f53bb80b78e412c9656" UNIQUE ("role_id", "permission_id"), CONSTRAINT "PK_84059017c90bfcb701b8fa42297" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "user_roles" ("id" BIGSERIAL NOT NULL, "user_id" bigint NOT NULL, "role_id" bigint NOT NULL, CONSTRAINT "UQ_23ed6f04fe43066df08379fd034" UNIQUE ("user_id", "role_id"), CONSTRAINT "PK_8acd5cf26ebd158416f477de799" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."settings_value_type_enum" AS ENUM('NUMBER', 'STRING', 'TIME', 'PERCENT', 'BOOLEAN')`);
-        await queryRunner.query(`CREATE TABLE "settings" ("id" BIGSERIAL NOT NULL, "key" character varying(80) NOT NULL, "value" character varying(255) NOT NULL, "value_type" "public"."settings_value_type_enum" NOT NULL, "description" character varying(255), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL, CONSTRAINT "UQ_c8639b7626fa94ba8265628f214" UNIQUE ("key"), CONSTRAINT "PK_0669fe20e252eb692bf4d344975" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."transport_registrations_trip_type_enum" AS ENUM('LECTURE', 'EXAM')`);
-        await queryRunner.query(`CREATE TYPE "public"."transport_registrations_registration_status_enum" AS ENUM('REGISTERED', 'COMPLETED', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "transport_registrations" ("id" BIGSERIAL NOT NULL, "trip_type" "public"."transport_registrations_trip_type_enum" NOT NULL, "registration_status" "public"."transport_registrations_registration_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "certificate_id" bigint NOT NULL, "student_charge_id" bigint, "created_by" bigint, CONSTRAINT "REL_ba5f24217cbf52587bac1eee6f" UNIQUE ("student_charge_id"), CONSTRAINT "PK_d1c329d2df82bd01ba85fd38f24" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."transport_trips_trip_type_enum" AS ENUM('LECTURE', 'EXAM')`);
-        await queryRunner.query(`CREATE TYPE "public"."transport_trips_status_enum" AS ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED')`);
-        await queryRunner.query(`CREATE TABLE "transport_trips" ("id" BIGSERIAL NOT NULL, "trip_type" "public"."transport_trips_trip_type_enum" NOT NULL, "trip_date" date NOT NULL, "day_number" smallint, "assembly_time" TIME, "destination" character varying(150), "capacity" integer, "status" "public"."transport_trips_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "created_by" bigint, CONSTRAINT "PK_44f8fa31e37c9f6003efb645e2e" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."transport_attendance_attendance_status_enum" AS ENUM('PENDING', 'ATTENDED', 'ABSENT')`);
-        await queryRunner.query(`CREATE TABLE "transport_attendance" ("id" BIGSERIAL NOT NULL, "attendance_status" "public"."transport_attendance_attendance_status_enum" NOT NULL, "attended_at" TIMESTAMP WITH TIME ZONE, "transport_registration_id" bigint NOT NULL, "transport_trip_id" bigint NOT NULL, CONSTRAINT "UQ_f5a294f212fdbfe52bc65e86fd8" UNIQUE ("transport_registration_id", "transport_trip_id"), CONSTRAINT "PK_dcdb0ab511e38f106a1ce08c0ea" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TABLE "activity_log" ("id" BIGSERIAL NOT NULL, "action" character varying(120) NOT NULL, "note" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "user_id" bigint NOT NULL, CONSTRAINT "PK_067d761e2956b77b14e534fd6f1" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`CREATE TYPE "public"."vehicle_unavailable_periods_reason_type_enum" AS ENUM('MAINTENANCE', 'UNAVAILABLE', 'OUT_OF_SERVICE')`);
-        await queryRunner.query(`CREATE TABLE "vehicle_unavailable_periods" ("id" BIGSERIAL NOT NULL, "start_at" TIMESTAMP WITH TIME ZONE NOT NULL, "end_at" TIMESTAMP WITH TIME ZONE, "reason_type" "public"."vehicle_unavailable_periods_reason_type_enum" NOT NULL, "notes" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "vehicle_id" bigint NOT NULL, CONSTRAINT "PK_49925523261ccd270300ec17005" PRIMARY KEY ("id"))`);
-        await queryRunner.query(`ALTER TABLE "auth_otp_codes" ADD CONSTRAINT "FK_e60f7c6493d8dcf1a3daa83a729" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "auth_sessions" ADD CONSTRAINT "FK_50ccaa6440288a06f0ba693ccc6" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "instructors" ADD CONSTRAINT "FK_2c06003dbc501aa07744f11e547" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "students" ADD CONSTRAINT "FK_fb3eff90b11bddf7285f9b4e281" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "booking" ADD CONSTRAINT "FK_89225b629ac6de19df741b94e9d" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "booking" ADD CONSTRAINT "FK_a5e1b2e9afd34b7ebb638bafb6f" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "booking" ADD CONSTRAINT "FK_96920c53d9b83526064a5a9442a" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "booking" ADD CONSTRAINT "FK_9689ded8014ca12a5e1ccbce7ef" FOREIGN KEY ("replaced_booking_id") REFERENCES "booking"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "booking_cancellations" ADD CONSTRAINT "FK_19888a8d8875acfc9568cc52a58" FOREIGN KEY ("booking_id") REFERENCES "booking"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "booking_cancellations" ADD CONSTRAINT "FK_a03fe7251a8e9041e4758e2ad04" FOREIGN KEY ("cancelled_by_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "certificates" ADD CONSTRAINT "FK_5fc025803a5eb21001b77ed6b1a" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "certificate_exam_results" ADD CONSTRAINT "FK_a5d37142fad511bbc6e90faf298" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "certificate_training_sessions" ADD CONSTRAINT "FK_2842387e73230300c9e3dcb2b10" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "employees" ADD CONSTRAINT "FK_2d83c53c3e553a48dadb9722e38" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses" ADD CONSTRAINT "FK_2f4f5d1c1e4243899954c63b391" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_employee" ADD CONSTRAINT "FK_16efee0c597ad533c5577f315e7" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_employee" ADD CONSTRAINT "FK_8c8a35555b949822ba2369dd47c" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_general" ADD CONSTRAINT "FK_e9039d3574fd23996198229ef4d" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_instructor" ADD CONSTRAINT "FK_ea53c876604f7c2f8a5829cc7b7" FOREIGN KEY ("booking_id") REFERENCES "booking"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_instructor" ADD CONSTRAINT "FK_1b50921e9fe137d4ba1e2048ae2" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_vehicle" ADD CONSTRAINT "FK_7d19eb8a5b620c778f1ab97552b" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "expenses_vehicle" ADD CONSTRAINT "FK_bc7375ae5c3e5e1d039195fb9e8" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "instructor_schedule_publications" ADD CONSTRAINT "FK_30a472957de36be8f912524b3a6" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "instructor_schedule_publications" ADD CONSTRAINT "FK_e6ff987da26ee511f1fe402c6ae" FOREIGN KEY ("created_by_employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "instructor_unavailable_periods" ADD CONSTRAINT "FK_659c0c1482c4ddd7664f0da897d" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "instructor_weekly_availabilities" ADD CONSTRAINT "FK_f9a84b9714027651aeeda1b684d" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "notifications" ADD CONSTRAINT "FK_2726bde496d82b6401532ab1477" FOREIGN KEY ("recipient_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "student_charges" ADD CONSTRAINT "FK_d2f7fd61b497a2f1ddbd177eb47" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "student_charges" ADD CONSTRAINT "FK_30722d3a8d30a46d40d2036b580" FOREIGN KEY ("booking_id") REFERENCES "booking"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "student_charges" ADD CONSTRAINT "FK_593ce5f3072c3cbed544558df7d" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "student_charges" ADD CONSTRAINT "FK_519acd046fcdd0ffc296bbd8fea" FOREIGN KEY ("certificate_exam_result_id") REFERENCES "certificate_exam_results"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "student_payments" ADD CONSTRAINT "FK_efef9ada5ac90d22fdc9000cca2" FOREIGN KEY ("student_charge_id") REFERENCES "student_charges"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "shamcash_transactions" ADD CONSTRAINT "FK_34aa92bd6c20de5978564b30710" FOREIGN KEY ("student_payment_id") REFERENCES "student_payments"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "role_permissions" ADD CONSTRAINT "FK_178199805b901ccd220ab7740ec" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "role_permissions" ADD CONSTRAINT "FK_17022daf3f885f7d35423e9971e" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "user_roles" ADD CONSTRAINT "FK_87b8888186ca9769c960e926870" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "user_roles" ADD CONSTRAINT "FK_b23c65e50a758245a33ee35fda1" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "transport_registrations" ADD CONSTRAINT "FK_b20c2355c930a11e4e38d7a7387" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "transport_registrations" ADD CONSTRAINT "FK_ba5f24217cbf52587bac1eee6f9" FOREIGN KEY ("student_charge_id") REFERENCES "student_charges"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "transport_registrations" ADD CONSTRAINT "FK_cb5a603ba1b188de121e27bfaab" FOREIGN KEY ("created_by") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "transport_trips" ADD CONSTRAINT "FK_d11ed93dbb27d95431103e40f1f" FOREIGN KEY ("created_by") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "transport_attendance" ADD CONSTRAINT "FK_de6daed8881deba621a3f129a7d" FOREIGN KEY ("transport_registration_id") REFERENCES "transport_registrations"("id") ON DELETE CASCADE ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "transport_attendance" ADD CONSTRAINT "FK_eb55a6cfa978d8b9bcc72a3182f" FOREIGN KEY ("transport_trip_id") REFERENCES "transport_trips"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "activity_log" ADD CONSTRAINT "FK_81615294532ca4b6c70abd1b2e6" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-        await queryRunner.query(`ALTER TABLE "vehicle_unavailable_periods" ADD CONSTRAINT "FK_4352f7abbf04d6b5d57452b3866" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`);
-    }
+  public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `CREATE TYPE "public"."users_account_status_enum" AS ENUM('ACTIVE', 'BLOCKED', 'ARCHIVED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "users" ("id" BIGSERIAL NOT NULL, "name" character varying(100) NOT NULL, "phone" character varying(20) NOT NULL, "password_hash" character varying(255), "must_change_password" boolean NOT NULL DEFAULT true, "token_version" integer NOT NULL DEFAULT '0', "account_status" "public"."users_account_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_a000cca60bcf04454e727699490" UNIQUE ("phone"), CONSTRAINT "PK_a3ffb1c0c8416b9fc6f907b7433" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."auth_otp_codes_purpose_enum" AS ENUM('STUDENT_LOGIN', 'PHONE_VERIFICATION', 'PASSWORD_RESET')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "auth_otp_codes" ("id" BIGSERIAL NOT NULL, "phone" character varying(20) NOT NULL, "code_hash" character varying(255) NOT NULL, "purpose" "public"."auth_otp_codes_purpose_enum" NOT NULL, "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "consumed_at" TIMESTAMP WITH TIME ZONE, "attempts_count" integer NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "user_id" bigint, CONSTRAINT "PK_83b7cfd3097c535e8752e8c208a" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "auth_sessions" ("id" BIGSERIAL NOT NULL, "refresh_token_hash" character varying(255) NOT NULL, "device_name" character varying(120), "ip_address" character varying(80), "user_agent" text, "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL, "revoked_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "user_id" bigint NOT NULL, CONSTRAINT "PK_641507381f32580e8479efc36cd" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."instructors_gender_enum" AS ENUM('MALE', 'FEMALE')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."instructors_instructor_type_enum" AS ENUM('MANUAL', 'AUTOMATIC', 'BOTH')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "instructors" ("id" BIGSERIAL NOT NULL, "gender" "public"."instructors_gender_enum" NOT NULL, "instructor_type" "public"."instructors_instructor_type_enum" NOT NULL, "user_id" bigint NOT NULL, CONSTRAINT "REL_2c06003dbc501aa07744f11e54" UNIQUE ("user_id"), CONSTRAINT "PK_95e3da69ca76176ea4ab8435098" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."students_student_status_enum" AS ENUM('PASSED', 'FAILED', 'IN_TRAINING', 'CERTIFICATE_SEEKER')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "students" ("id" BIGSERIAL NOT NULL, "student_status" "public"."students_student_status_enum" NOT NULL, "user_id" bigint NOT NULL, CONSTRAINT "REL_fb3eff90b11bddf7285f9b4e28" UNIQUE ("user_id"), CONSTRAINT "PK_7d7f07271ad4ce999880713f05e" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."vehicles_type_enum" AS ENUM('MANUAL', 'AUTOMATIC')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."vehicles_status_enum" AS ENUM('ACTIVE', 'INACTIVE', 'ARCHIVED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "vehicles" ("id" BIGSERIAL NOT NULL, "plate_number" character varying(20) NOT NULL, "model" character varying(50), "color" character varying(30), "type" "public"."vehicles_type_enum" NOT NULL, "status" "public"."vehicles_status_enum" NOT NULL, "admin_notes" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_a7eeeb4b551b2629dd9ee964134" UNIQUE ("plate_number"), CONSTRAINT "PK_18d8646b59304dce4af3a9e35b6" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."booking_vehicle_source_enum" AS ENUM('SCHOOL_CAR', 'STUDENT_CAR')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."booking_booking_status_enum" AS ENUM('PENDING_PAYMENT', 'BOOKED', 'COMPLETED', 'NO_SHOW', 'CANCELLED', 'EXPIRED')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."booking_payment_status_enum" AS ENUM('PENDING_DEPOSIT', 'DEPOSIT_PAID', 'FULLY_PAID', 'DEPOSIT_NON_REFUNDABLE', 'DEPOSIT_AVAILABLE_FOR_REBOOKING', 'DEPOSIT_USED_IN_REBOOKING')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."booking_training_type_enum" AS ENUM('MANUAL', 'AUTOMATIC')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "booking" ("id" BIGSERIAL NOT NULL, "vehicle_source" "public"."booking_vehicle_source_enum" NOT NULL, "booking_status" "public"."booking_booking_status_enum" NOT NULL, "payment_status" "public"."booking_payment_status_enum" NOT NULL, "training_type" "public"."booking_training_type_enum" NOT NULL, "start_at" TIMESTAMP WITH TIME ZONE NOT NULL, "end_at" TIMESTAMP WITH TIME ZONE NOT NULL, "locked_until" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "student_id" bigint NOT NULL, "instructor_id" bigint NOT NULL, "vehicle_id" bigint, "replaced_booking_id" bigint, CONSTRAINT "REL_9689ded8014ca12a5e1ccbce7e" UNIQUE ("replaced_booking_id"), CONSTRAINT "PK_49171efc69702ed84c812f33540" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."booking_cancellations_cancellation_party_enum" AS ENUM('STUDENT', 'VEHICLE', 'INSTRUCTOR', 'SCHOOL')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "booking_cancellations" ("id" BIGSERIAL NOT NULL, "cancellation_party" "public"."booking_cancellations_cancellation_party_enum" NOT NULL, "cancellation_reason" character varying(255), "cancelled_at" TIMESTAMP WITH TIME ZONE NOT NULL, "booking_id" bigint NOT NULL, "cancelled_by_user_id" bigint, CONSTRAINT "REL_19888a8d8875acfc9568cc52a5" UNIQUE ("booking_id"), CONSTRAINT "PK_8bb840ff63f3a96ed3a75c4bfef" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."lesson_price_instructor_gender_enum" AS ENUM('MALE', 'FEMALE')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."lesson_price_training_type_enum" AS ENUM('MANUAL', 'AUTOMATIC')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."lesson_price_vehicle_source_enum" AS ENUM('SCHOOL_CAR', 'STUDENT_CAR')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "lesson_price" ("id" BIGSERIAL NOT NULL, "instructor_gender" "public"."lesson_price_instructor_gender_enum" NOT NULL, "training_type" "public"."lesson_price_training_type_enum" NOT NULL, "vehicle_source" "public"."lesson_price_vehicle_source_enum" NOT NULL, "price" numeric(10,2) NOT NULL, "effective_from" date NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), CONSTRAINT "UQ_2542c2c50387d9738f8be2b4c60" UNIQUE ("instructor_gender", "training_type", "vehicle_source", "effective_from"), CONSTRAINT "PK_37b360dbce374ede4bbc91ac0e4" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."certificates_category_enum" AS ENUM('B', 'B1', 'C', 'D')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."certificates_request_status_enum" AS ENUM('WAITING_FOR_SERVICE_FEE', 'WAITING_FOR_TRAINING_SCHEDULE', 'IN_GOVERNMENT_TRAINING', 'WAITING_FOR_PRACTICAL_EXAM', 'WAITING_FOR_THEORETICAL_EXAM', 'COMPLETED', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "certificates" ("id" BIGSERIAL NOT NULL, "category" "public"."certificates_category_enum" NOT NULL, "request_status" "public"."certificates_request_status_enum" NOT NULL, "personal_photo_url" character varying(500) NOT NULL, "transport_requested" boolean NOT NULL, "requested_at" TIMESTAMP WITH TIME ZONE NOT NULL, "student_id" bigint NOT NULL, CONSTRAINT "PK_e4c7e31e2144300bea7d89eb165" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."certificate_exam_results_exam_type_enum" AS ENUM('THEORY', 'PRACTICAL')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."certificate_exam_results_exam_result_enum" AS ENUM('PASS', 'FAIL', 'ABSENT')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "certificate_exam_results" ("id" BIGSERIAL NOT NULL, "exam_type" "public"."certificate_exam_results_exam_type_enum" NOT NULL, "attempt_number" smallint NOT NULL, "scheduled_at" TIMESTAMP WITH TIME ZONE, "exam_result" "public"."certificate_exam_results_exam_result_enum", "result_recorded_at" TIMESTAMP WITH TIME ZONE, "certificate_id" bigint NOT NULL, CONSTRAINT "PK_5f24f89ce755c6e698530141c74" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "certificate_training_sessions" ("id" BIGSERIAL NOT NULL, "session_number" smallint NOT NULL, "scheduled_at" TIMESTAMP WITH TIME ZONE, "certificate_id" bigint NOT NULL, CONSTRAINT "PK_b39afe422a6b607801543b41750" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "employees" ("id" BIGSERIAL NOT NULL, "hire_date" date, "monthly_salary" numeric(10,2), "resign_date" date, "user_id" bigint NOT NULL, CONSTRAINT "REL_2d83c53c3e553a48dadb9722e3" UNIQUE ("user_id"), CONSTRAINT "PK_b9535a98350d5b26e7eb0c26af4" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."expenses_category_enum" AS ENUM('VEHICLE', 'INSTRUCTOR', 'EMPLOYEE', 'GENERAL')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."expenses_status_enum" AS ENUM('PAID', 'UNPAID')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "expenses" ("id" BIGSERIAL NOT NULL, "category" "public"."expenses_category_enum" NOT NULL, "amount" numeric(10,2) NOT NULL, "expense_date" date NOT NULL, "status" "public"."expenses_status_enum" NOT NULL, "note" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "employee_id" bigint, CONSTRAINT "PK_94c3ceb17e3140abc9282c20610" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."expenses_employee_type_enum" AS ENUM('SALARY', 'BONUS', 'OTHER')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "expenses_employee" ("id" BIGSERIAL NOT NULL, "type" "public"."expenses_employee_type_enum" NOT NULL, "month" date NOT NULL, "employee_id" bigint NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_8c8a35555b949822ba2369dd47" UNIQUE ("expense_id"), CONSTRAINT "PK_2f4f5d1c1e4243899954c63b391" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."expenses_general_type_enum" AS ENUM('WATER', 'ELECTRICITY', 'INTERNET', 'KITCHEN', 'SUPPLIES', 'OTHER')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "expenses_general" ("id" BIGSERIAL NOT NULL, "type" "public"."expenses_general_type_enum" NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_e9039d3574fd23996198229ef4" UNIQUE ("expense_id"), CONSTRAINT "PK_d0db90ca4010ae5cba47d2df22f" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "expenses_instructor" ("id" BIGSERIAL NOT NULL, "booking_id" bigint NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_ea53c876604f7c2f8a5829cc7b" UNIQUE ("booking_id"), CONSTRAINT "REL_1b50921e9fe137d4ba1e2048ae" UNIQUE ("expense_id"), CONSTRAINT "PK_f221296876dc14e7ef5ae345b29" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."expenses_vehicle_reason_enum" AS ENUM('MAINTENANCE', 'GAS', 'INSURANCE', 'OTHER')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "expenses_vehicle" ("id" BIGSERIAL NOT NULL, "reason" "public"."expenses_vehicle_reason_enum" NOT NULL, "liters" numeric(6,2), "vehicle_id" bigint NOT NULL, "expense_id" bigint NOT NULL, CONSTRAINT "REL_bc7375ae5c3e5e1d039195fb9e" UNIQUE ("expense_id"), CONSTRAINT "PK_5fc8d9c2e4f6105eb9ccbae8f38" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."instructor_price_type_enum" AS ENUM('MALE', 'FEMALE')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "instructor_price" ("id" BIGSERIAL NOT NULL, "type" "public"."instructor_price_type_enum" NOT NULL, "price" numeric(10,2) NOT NULL, "effective_from" date NOT NULL, CONSTRAINT "UQ_e3fbca7e02682d5bcca5f962b1a" UNIQUE ("type", "effective_from"), CONSTRAINT "PK_4bd165ab637bc2dfd48b2f00647" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "instructor_schedule_publications" ("id" BIGSERIAL NOT NULL, "schedule_date" date NOT NULL, "published_at" TIMESTAMP WITH TIME ZONE NOT NULL, "first_published_booking_start_at" TIMESTAMP WITH TIME ZONE, "instructor_id" bigint NOT NULL, "created_by_employee_id" bigint, CONSTRAINT "UQ_dc7a5f643cdc949827880d35b52" UNIQUE ("instructor_id", "schedule_date"), CONSTRAINT "PK_acf3f5bdcd958fbfbb26347e16c" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "instructor_unavailable_periods" ("id" BIGSERIAL NOT NULL, "start_at" TIMESTAMP WITH TIME ZONE NOT NULL, "end_at" TIMESTAMP WITH TIME ZONE NOT NULL, "reason" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "instructor_id" bigint NOT NULL, CONSTRAINT "PK_36524838a69407c6bc119372db4" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."instructor_weekly_availabilities_day_of_week_enum" AS ENUM('SAT', 'SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "instructor_weekly_availabilities" ("id" BIGSERIAL NOT NULL, "day_of_week" "public"."instructor_weekly_availabilities_day_of_week_enum" NOT NULL, "start_time" TIME NOT NULL, "end_time" TIME NOT NULL, "instructor_id" bigint NOT NULL, CONSTRAINT "UQ_9bb6b8f12e2ca8c403591eab6c7" UNIQUE ("instructor_id", "day_of_week", "start_time"), CONSTRAINT "PK_398c35a14e70440b866cd87a8fb" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."notifications_notification_type_enum" AS ENUM('BOOKING_CONFIRMED', 'BOOKING_CANCELLED', 'BOOKING_EXPIRED', 'PAYMENT_ACCEPTED', 'PAYMENT_REJECTED', 'CERTIFICATE_STATUS_CHANGED', 'INSTRUCTOR_SCHEDULE', 'GENERAL')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."notifications_channel_enum" AS ENUM('IN_APP', 'SMS', 'PUSH')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."notifications_status_enum" AS ENUM('PENDING', 'SENT', 'FAILED', 'READ')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "notifications" ("id" BIGSERIAL NOT NULL, "title" character varying(150) NOT NULL, "body" text NOT NULL, "notification_type" "public"."notifications_notification_type_enum" NOT NULL, "channel" "public"."notifications_channel_enum" NOT NULL, "status" "public"."notifications_status_enum" NOT NULL, "sent_at" TIMESTAMP WITH TIME ZONE, "read_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "recipient_user_id" bigint NOT NULL, CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."student_charges_charge_reason_enum" AS ENUM('LESSON', 'LESSON_DEPOSIT', 'LESSON_REMAINDER', 'CERTIFICATE_FEE', 'TRANSPORT_LECTURE', 'TRANSPORT_EXAM', 'REEXAM_THEORY', 'REEXAM_PRACTICAL', 'OTHER')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."student_charges_charge_status_enum" AS ENUM('PAID', 'UNPAID', 'PARTIALLY_PAID', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "student_charges" ("id" BIGSERIAL NOT NULL, "charge_reason" "public"."student_charges_charge_reason_enum" NOT NULL, "amount_due" numeric(10,2) NOT NULL, "charge_status" "public"."student_charges_charge_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "due_at" date, "student_id" bigint NOT NULL, "booking_id" bigint, "certificate_id" bigint, "certificate_exam_result_id" bigint, CONSTRAINT "PK_b102cdbafeee6011d423e409b83" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."student_payments_payment_method_enum" AS ENUM('CASH', 'SHAM_CASH')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "student_payments" ("id" BIGSERIAL NOT NULL, "amount_paid" numeric(10,2) NOT NULL, "payment_method" "public"."student_payments_payment_method_enum" NOT NULL, "received_at" TIMESTAMP WITH TIME ZONE NOT NULL, "student_charge_id" bigint NOT NULL, CONSTRAINT "PK_e7505845c50977798312c4af0aa" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "shamcash_transactions" ("id" BIGSERIAL NOT NULL, "transaction_id" character varying(100) NOT NULL, "sender_account" character varying(50), "receiver_account" character varying(50), "amount" numeric(10,2) NOT NULL, "occurred_at" TIMESTAMP WITH TIME ZONE, "verified_at" TIMESTAMP WITH TIME ZONE NOT NULL, "raw_payload" jsonb, "student_payment_id" bigint NOT NULL, CONSTRAINT "UQ_59e7d6973ecf50f90a7c6fec6b7" UNIQUE ("transaction_id"), CONSTRAINT "REL_34aa92bd6c20de5978564b3071" UNIQUE ("student_payment_id"), CONSTRAINT "PK_0a75e88b1cea222b6fa57e50689" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "permissions" ("id" BIGSERIAL NOT NULL, "code" character varying(80) NOT NULL, "description" character varying(255), "module" character varying(60), CONSTRAINT "UQ_8dad765629e83229da6feda1c1d" UNIQUE ("code"), CONSTRAINT "PK_920331560282b8bd21bb02290df" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."roles_title_enum" AS ENUM('MANAGER', 'RECEPTIONIST', 'ACCOUNTANT', 'INSTRUCTOR', 'STUDENT')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "roles" ("id" BIGSERIAL NOT NULL, "title" "public"."roles_title_enum" NOT NULL, "description" character varying(255), CONSTRAINT "UQ_08e86fada7ae67b1689f948e83e" UNIQUE ("title"), CONSTRAINT "PK_c1433d71a4838793a49dcad46ab" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "role_permissions" ("id" BIGSERIAL NOT NULL, "role_id" bigint NOT NULL, "permission_id" bigint NOT NULL, CONSTRAINT "UQ_25d24010f53bb80b78e412c9656" UNIQUE ("role_id", "permission_id"), CONSTRAINT "PK_84059017c90bfcb701b8fa42297" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "user_roles" ("id" BIGSERIAL NOT NULL, "user_id" bigint NOT NULL, "role_id" bigint NOT NULL, CONSTRAINT "UQ_23ed6f04fe43066df08379fd034" UNIQUE ("user_id", "role_id"), CONSTRAINT "PK_8acd5cf26ebd158416f477de799" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."settings_value_type_enum" AS ENUM('NUMBER', 'STRING', 'TIME', 'PERCENT', 'BOOLEAN')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "settings" ("id" BIGSERIAL NOT NULL, "key" character varying(80) NOT NULL, "value" character varying(255) NOT NULL, "value_type" "public"."settings_value_type_enum" NOT NULL, "description" character varying(255), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL, CONSTRAINT "UQ_c8639b7626fa94ba8265628f214" UNIQUE ("key"), CONSTRAINT "PK_0669fe20e252eb692bf4d344975" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."transport_registrations_trip_type_enum" AS ENUM('LECTURE', 'EXAM')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."transport_registrations_registration_status_enum" AS ENUM('REGISTERED', 'COMPLETED', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "transport_registrations" ("id" BIGSERIAL NOT NULL, "trip_type" "public"."transport_registrations_trip_type_enum" NOT NULL, "registration_status" "public"."transport_registrations_registration_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "certificate_id" bigint NOT NULL, "student_charge_id" bigint, "created_by" bigint, CONSTRAINT "REL_ba5f24217cbf52587bac1eee6f" UNIQUE ("student_charge_id"), CONSTRAINT "PK_d1c329d2df82bd01ba85fd38f24" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."transport_trips_trip_type_enum" AS ENUM('LECTURE', 'EXAM')`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."transport_trips_status_enum" AS ENUM('SCHEDULED', 'COMPLETED', 'CANCELLED')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "transport_trips" ("id" BIGSERIAL NOT NULL, "trip_type" "public"."transport_trips_trip_type_enum" NOT NULL, "trip_date" date NOT NULL, "day_number" smallint, "assembly_time" TIME, "destination" character varying(150), "capacity" integer, "status" "public"."transport_trips_status_enum" NOT NULL, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "created_by" bigint, CONSTRAINT "PK_44f8fa31e37c9f6003efb645e2e" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."transport_attendance_attendance_status_enum" AS ENUM('PENDING', 'ATTENDED', 'ABSENT')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "transport_attendance" ("id" BIGSERIAL NOT NULL, "attendance_status" "public"."transport_attendance_attendance_status_enum" NOT NULL, "attended_at" TIMESTAMP WITH TIME ZONE, "transport_registration_id" bigint NOT NULL, "transport_trip_id" bigint NOT NULL, CONSTRAINT "UQ_f5a294f212fdbfe52bc65e86fd8" UNIQUE ("transport_registration_id", "transport_trip_id"), CONSTRAINT "PK_dcdb0ab511e38f106a1ce08c0ea" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "activity_log" ("id" BIGSERIAL NOT NULL, "action" character varying(120) NOT NULL, "note" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "user_id" bigint NOT NULL, CONSTRAINT "PK_067d761e2956b77b14e534fd6f1" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `CREATE TYPE "public"."vehicle_unavailable_periods_reason_type_enum" AS ENUM('MAINTENANCE', 'UNAVAILABLE', 'OUT_OF_SERVICE')`,
+    );
+    await queryRunner.query(
+      `CREATE TABLE "vehicle_unavailable_periods" ("id" BIGSERIAL NOT NULL, "start_at" TIMESTAMP WITH TIME ZONE NOT NULL, "end_at" TIMESTAMP WITH TIME ZONE, "reason_type" "public"."vehicle_unavailable_periods_reason_type_enum" NOT NULL, "notes" character varying(255), "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "vehicle_id" bigint NOT NULL, CONSTRAINT "PK_49925523261ccd270300ec17005" PRIMARY KEY ("id"))`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "auth_otp_codes" ADD CONSTRAINT "FK_e60f7c6493d8dcf1a3daa83a729" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "auth_sessions" ADD CONSTRAINT "FK_50ccaa6440288a06f0ba693ccc6" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructors" ADD CONSTRAINT "FK_2c06003dbc501aa07744f11e547" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "students" ADD CONSTRAINT "FK_fb3eff90b11bddf7285f9b4e281" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" ADD CONSTRAINT "FK_89225b629ac6de19df741b94e9d" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" ADD CONSTRAINT "FK_a5e1b2e9afd34b7ebb638bafb6f" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" ADD CONSTRAINT "FK_96920c53d9b83526064a5a9442a" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" ADD CONSTRAINT "FK_9689ded8014ca12a5e1ccbce7ef" FOREIGN KEY ("replaced_booking_id") REFERENCES "booking"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_cancellations" ADD CONSTRAINT "FK_19888a8d8875acfc9568cc52a58" FOREIGN KEY ("booking_id") REFERENCES "booking"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_cancellations" ADD CONSTRAINT "FK_a03fe7251a8e9041e4758e2ad04" FOREIGN KEY ("cancelled_by_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "certificates" ADD CONSTRAINT "FK_5fc025803a5eb21001b77ed6b1a" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "certificate_exam_results" ADD CONSTRAINT "FK_a5d37142fad511bbc6e90faf298" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "certificate_training_sessions" ADD CONSTRAINT "FK_2842387e73230300c9e3dcb2b10" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "employees" ADD CONSTRAINT "FK_2d83c53c3e553a48dadb9722e38" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses" ADD CONSTRAINT "FK_2f4f5d1c1e4243899954c63b391" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_employee" ADD CONSTRAINT "FK_16efee0c597ad533c5577f315e7" FOREIGN KEY ("employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_employee" ADD CONSTRAINT "FK_8c8a35555b949822ba2369dd47c" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_general" ADD CONSTRAINT "FK_e9039d3574fd23996198229ef4d" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_instructor" ADD CONSTRAINT "FK_ea53c876604f7c2f8a5829cc7b7" FOREIGN KEY ("booking_id") REFERENCES "booking"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_instructor" ADD CONSTRAINT "FK_1b50921e9fe137d4ba1e2048ae2" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_vehicle" ADD CONSTRAINT "FK_7d19eb8a5b620c778f1ab97552b" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_vehicle" ADD CONSTRAINT "FK_bc7375ae5c3e5e1d039195fb9e8" FOREIGN KEY ("expense_id") REFERENCES "expenses"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_schedule_publications" ADD CONSTRAINT "FK_30a472957de36be8f912524b3a6" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_schedule_publications" ADD CONSTRAINT "FK_e6ff987da26ee511f1fe402c6ae" FOREIGN KEY ("created_by_employee_id") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_unavailable_periods" ADD CONSTRAINT "FK_659c0c1482c4ddd7664f0da897d" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_weekly_availabilities" ADD CONSTRAINT "FK_f9a84b9714027651aeeda1b684d" FOREIGN KEY ("instructor_id") REFERENCES "instructors"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "notifications" ADD CONSTRAINT "FK_2726bde496d82b6401532ab1477" FOREIGN KEY ("recipient_user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" ADD CONSTRAINT "FK_d2f7fd61b497a2f1ddbd177eb47" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" ADD CONSTRAINT "FK_30722d3a8d30a46d40d2036b580" FOREIGN KEY ("booking_id") REFERENCES "booking"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" ADD CONSTRAINT "FK_593ce5f3072c3cbed544558df7d" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" ADD CONSTRAINT "FK_519acd046fcdd0ffc296bbd8fea" FOREIGN KEY ("certificate_exam_result_id") REFERENCES "certificate_exam_results"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "UQ_student_charges_booking" ON "student_charges" ("booking_id") WHERE "booking_id" IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_payments" ADD CONSTRAINT "FK_efef9ada5ac90d22fdc9000cca2" FOREIGN KEY ("student_charge_id") REFERENCES "student_charges"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "shamcash_transactions" ADD CONSTRAINT "FK_34aa92bd6c20de5978564b30710" FOREIGN KEY ("student_payment_id") REFERENCES "student_payments"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "role_permissions" ADD CONSTRAINT "FK_178199805b901ccd220ab7740ec" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "role_permissions" ADD CONSTRAINT "FK_17022daf3f885f7d35423e9971e" FOREIGN KEY ("permission_id") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" ADD CONSTRAINT "FK_87b8888186ca9769c960e926870" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" ADD CONSTRAINT "FK_b23c65e50a758245a33ee35fda1" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_registrations" ADD CONSTRAINT "FK_b20c2355c930a11e4e38d7a7387" FOREIGN KEY ("certificate_id") REFERENCES "certificates"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_registrations" ADD CONSTRAINT "FK_ba5f24217cbf52587bac1eee6f9" FOREIGN KEY ("student_charge_id") REFERENCES "student_charges"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_registrations" ADD CONSTRAINT "FK_cb5a603ba1b188de121e27bfaab" FOREIGN KEY ("created_by") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_trips" ADD CONSTRAINT "FK_d11ed93dbb27d95431103e40f1f" FOREIGN KEY ("created_by") REFERENCES "employees"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_attendance" ADD CONSTRAINT "FK_de6daed8881deba621a3f129a7d" FOREIGN KEY ("transport_registration_id") REFERENCES "transport_registrations"("id") ON DELETE CASCADE ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_attendance" ADD CONSTRAINT "FK_eb55a6cfa978d8b9bcc72a3182f" FOREIGN KEY ("transport_trip_id") REFERENCES "transport_trips"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "activity_log" ADD CONSTRAINT "FK_81615294532ca4b6c70abd1b2e6" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "vehicle_unavailable_periods" ADD CONSTRAINT "FK_4352f7abbf04d6b5d57452b3866" FOREIGN KEY ("vehicle_id") REFERENCES "vehicles"("id") ON DELETE RESTRICT ON UPDATE NO ACTION`,
+    );
+  }
 
-    public async down(queryRunner: QueryRunner): Promise<void> {
-        await queryRunner.query(`ALTER TABLE "vehicle_unavailable_periods" DROP CONSTRAINT "FK_4352f7abbf04d6b5d57452b3866"`);
-        await queryRunner.query(`ALTER TABLE "activity_log" DROP CONSTRAINT "FK_81615294532ca4b6c70abd1b2e6"`);
-        await queryRunner.query(`ALTER TABLE "transport_attendance" DROP CONSTRAINT "FK_eb55a6cfa978d8b9bcc72a3182f"`);
-        await queryRunner.query(`ALTER TABLE "transport_attendance" DROP CONSTRAINT "FK_de6daed8881deba621a3f129a7d"`);
-        await queryRunner.query(`ALTER TABLE "transport_trips" DROP CONSTRAINT "FK_d11ed93dbb27d95431103e40f1f"`);
-        await queryRunner.query(`ALTER TABLE "transport_registrations" DROP CONSTRAINT "FK_cb5a603ba1b188de121e27bfaab"`);
-        await queryRunner.query(`ALTER TABLE "transport_registrations" DROP CONSTRAINT "FK_ba5f24217cbf52587bac1eee6f9"`);
-        await queryRunner.query(`ALTER TABLE "transport_registrations" DROP CONSTRAINT "FK_b20c2355c930a11e4e38d7a7387"`);
-        await queryRunner.query(`ALTER TABLE "user_roles" DROP CONSTRAINT "FK_b23c65e50a758245a33ee35fda1"`);
-        await queryRunner.query(`ALTER TABLE "user_roles" DROP CONSTRAINT "FK_87b8888186ca9769c960e926870"`);
-        await queryRunner.query(`ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_17022daf3f885f7d35423e9971e"`);
-        await queryRunner.query(`ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_178199805b901ccd220ab7740ec"`);
-        await queryRunner.query(`ALTER TABLE "shamcash_transactions" DROP CONSTRAINT "FK_34aa92bd6c20de5978564b30710"`);
-        await queryRunner.query(`ALTER TABLE "student_payments" DROP CONSTRAINT "FK_efef9ada5ac90d22fdc9000cca2"`);
-        await queryRunner.query(`ALTER TABLE "student_charges" DROP CONSTRAINT "FK_519acd046fcdd0ffc296bbd8fea"`);
-        await queryRunner.query(`ALTER TABLE "student_charges" DROP CONSTRAINT "FK_593ce5f3072c3cbed544558df7d"`);
-        await queryRunner.query(`ALTER TABLE "student_charges" DROP CONSTRAINT "FK_30722d3a8d30a46d40d2036b580"`);
-        await queryRunner.query(`ALTER TABLE "student_charges" DROP CONSTRAINT "FK_d2f7fd61b497a2f1ddbd177eb47"`);
-        await queryRunner.query(`ALTER TABLE "notifications" DROP CONSTRAINT "FK_2726bde496d82b6401532ab1477"`);
-        await queryRunner.query(`ALTER TABLE "instructor_weekly_availabilities" DROP CONSTRAINT "FK_f9a84b9714027651aeeda1b684d"`);
-        await queryRunner.query(`ALTER TABLE "instructor_unavailable_periods" DROP CONSTRAINT "FK_659c0c1482c4ddd7664f0da897d"`);
-        await queryRunner.query(`ALTER TABLE "instructor_schedule_publications" DROP CONSTRAINT "FK_e6ff987da26ee511f1fe402c6ae"`);
-        await queryRunner.query(`ALTER TABLE "instructor_schedule_publications" DROP CONSTRAINT "FK_30a472957de36be8f912524b3a6"`);
-        await queryRunner.query(`ALTER TABLE "expenses_vehicle" DROP CONSTRAINT "FK_bc7375ae5c3e5e1d039195fb9e8"`);
-        await queryRunner.query(`ALTER TABLE "expenses_vehicle" DROP CONSTRAINT "FK_7d19eb8a5b620c778f1ab97552b"`);
-        await queryRunner.query(`ALTER TABLE "expenses_instructor" DROP CONSTRAINT "FK_1b50921e9fe137d4ba1e2048ae2"`);
-        await queryRunner.query(`ALTER TABLE "expenses_instructor" DROP CONSTRAINT "FK_ea53c876604f7c2f8a5829cc7b7"`);
-        await queryRunner.query(`ALTER TABLE "expenses_general" DROP CONSTRAINT "FK_e9039d3574fd23996198229ef4d"`);
-        await queryRunner.query(`ALTER TABLE "expenses_employee" DROP CONSTRAINT "FK_8c8a35555b949822ba2369dd47c"`);
-        await queryRunner.query(`ALTER TABLE "expenses_employee" DROP CONSTRAINT "FK_16efee0c597ad533c5577f315e7"`);
-        await queryRunner.query(`ALTER TABLE "expenses" DROP CONSTRAINT "FK_2f4f5d1c1e4243899954c63b391"`);
-        await queryRunner.query(`ALTER TABLE "employees" DROP CONSTRAINT "FK_2d83c53c3e553a48dadb9722e38"`);
-        await queryRunner.query(`ALTER TABLE "certificate_training_sessions" DROP CONSTRAINT "FK_2842387e73230300c9e3dcb2b10"`);
-        await queryRunner.query(`ALTER TABLE "certificate_exam_results" DROP CONSTRAINT "FK_a5d37142fad511bbc6e90faf298"`);
-        await queryRunner.query(`ALTER TABLE "certificates" DROP CONSTRAINT "FK_5fc025803a5eb21001b77ed6b1a"`);
-        await queryRunner.query(`ALTER TABLE "booking_cancellations" DROP CONSTRAINT "FK_a03fe7251a8e9041e4758e2ad04"`);
-        await queryRunner.query(`ALTER TABLE "booking_cancellations" DROP CONSTRAINT "FK_19888a8d8875acfc9568cc52a58"`);
-        await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT "FK_9689ded8014ca12a5e1ccbce7ef"`);
-        await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT "FK_96920c53d9b83526064a5a9442a"`);
-        await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT "FK_a5e1b2e9afd34b7ebb638bafb6f"`);
-        await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT "FK_89225b629ac6de19df741b94e9d"`);
-        await queryRunner.query(`ALTER TABLE "students" DROP CONSTRAINT "FK_fb3eff90b11bddf7285f9b4e281"`);
-        await queryRunner.query(`ALTER TABLE "instructors" DROP CONSTRAINT "FK_2c06003dbc501aa07744f11e547"`);
-        await queryRunner.query(`ALTER TABLE "auth_sessions" DROP CONSTRAINT "FK_50ccaa6440288a06f0ba693ccc6"`);
-        await queryRunner.query(`ALTER TABLE "auth_otp_codes" DROP CONSTRAINT "FK_e60f7c6493d8dcf1a3daa83a729"`);
-        await queryRunner.query(`DROP TABLE "vehicle_unavailable_periods"`);
-        await queryRunner.query(`DROP TYPE "public"."vehicle_unavailable_periods_reason_type_enum"`);
-        await queryRunner.query(`DROP TABLE "activity_log"`);
-        await queryRunner.query(`DROP TABLE "transport_attendance"`);
-        await queryRunner.query(`DROP TYPE "public"."transport_attendance_attendance_status_enum"`);
-        await queryRunner.query(`DROP TABLE "transport_trips"`);
-        await queryRunner.query(`DROP TYPE "public"."transport_trips_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."transport_trips_trip_type_enum"`);
-        await queryRunner.query(`DROP TABLE "transport_registrations"`);
-        await queryRunner.query(`DROP TYPE "public"."transport_registrations_registration_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."transport_registrations_trip_type_enum"`);
-        await queryRunner.query(`DROP TABLE "settings"`);
-        await queryRunner.query(`DROP TYPE "public"."settings_value_type_enum"`);
-        await queryRunner.query(`DROP TABLE "user_roles"`);
-        await queryRunner.query(`DROP TABLE "role_permissions"`);
-        await queryRunner.query(`DROP TABLE "roles"`);
-        await queryRunner.query(`DROP TYPE "public"."roles_title_enum"`);
-        await queryRunner.query(`DROP TABLE "permissions"`);
-        await queryRunner.query(`DROP TABLE "shamcash_transactions"`);
-        await queryRunner.query(`DROP TABLE "student_payments"`);
-        await queryRunner.query(`DROP TYPE "public"."student_payments_payment_method_enum"`);
-        await queryRunner.query(`DROP TABLE "student_charges"`);
-        await queryRunner.query(`DROP TYPE "public"."student_charges_charge_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."student_charges_charge_reason_enum"`);
-        await queryRunner.query(`DROP TABLE "notifications"`);
-        await queryRunner.query(`DROP TYPE "public"."notifications_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."notifications_channel_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."notifications_notification_type_enum"`);
-        await queryRunner.query(`DROP TABLE "instructor_weekly_availabilities"`);
-        await queryRunner.query(`DROP TYPE "public"."instructor_weekly_availabilities_day_of_week_enum"`);
-        await queryRunner.query(`DROP TABLE "instructor_unavailable_periods"`);
-        await queryRunner.query(`DROP TABLE "instructor_schedule_publications"`);
-        await queryRunner.query(`DROP TABLE "instructor_price"`);
-        await queryRunner.query(`DROP TYPE "public"."instructor_price_type_enum"`);
-        await queryRunner.query(`DROP TABLE "expenses_vehicle"`);
-        await queryRunner.query(`DROP TYPE "public"."expenses_vehicle_reason_enum"`);
-        await queryRunner.query(`DROP TABLE "expenses_instructor"`);
-        await queryRunner.query(`DROP TABLE "expenses_general"`);
-        await queryRunner.query(`DROP TYPE "public"."expenses_general_type_enum"`);
-        await queryRunner.query(`DROP TABLE "expenses_employee"`);
-        await queryRunner.query(`DROP TYPE "public"."expenses_employee_type_enum"`);
-        await queryRunner.query(`DROP TABLE "expenses"`);
-        await queryRunner.query(`DROP TYPE "public"."expenses_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."expenses_category_enum"`);
-        await queryRunner.query(`DROP TABLE "employees"`);
-        await queryRunner.query(`DROP TABLE "certificate_training_sessions"`);
-        await queryRunner.query(`DROP TABLE "certificate_exam_results"`);
-        await queryRunner.query(`DROP TYPE "public"."certificate_exam_results_exam_result_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."certificate_exam_results_exam_type_enum"`);
-        await queryRunner.query(`DROP TABLE "certificates"`);
-        await queryRunner.query(`DROP TYPE "public"."certificates_request_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."certificates_category_enum"`);
-        await queryRunner.query(`DROP TABLE "lesson_price"`);
-        await queryRunner.query(`DROP TYPE "public"."lesson_price_vehicle_source_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."lesson_price_training_type_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."lesson_price_instructor_gender_enum"`);
-        await queryRunner.query(`DROP TABLE "booking_cancellations"`);
-        await queryRunner.query(`DROP TYPE "public"."booking_cancellations_cancellation_party_enum"`);
-        await queryRunner.query(`DROP TABLE "booking"`);
-        await queryRunner.query(`DROP TYPE "public"."booking_training_type_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."booking_payment_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."booking_booking_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."booking_vehicle_source_enum"`);
-        await queryRunner.query(`DROP TABLE "vehicles"`);
-        await queryRunner.query(`DROP TYPE "public"."vehicles_status_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."vehicles_type_enum"`);
-        await queryRunner.query(`DROP TABLE "students"`);
-        await queryRunner.query(`DROP TYPE "public"."students_student_status_enum"`);
-        await queryRunner.query(`DROP TABLE "instructors"`);
-        await queryRunner.query(`DROP TYPE "public"."instructors_instructor_type_enum"`);
-        await queryRunner.query(`DROP TYPE "public"."instructors_gender_enum"`);
-        await queryRunner.query(`DROP TABLE "auth_sessions"`);
-        await queryRunner.query(`DROP TABLE "auth_otp_codes"`);
-        await queryRunner.query(`DROP TYPE "public"."auth_otp_codes_purpose_enum"`);
-        await queryRunner.query(`DROP TABLE "users"`);
-        await queryRunner.query(`DROP TYPE "public"."users_account_status_enum"`);
-    }
-
+  public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "vehicle_unavailable_periods" DROP CONSTRAINT "FK_4352f7abbf04d6b5d57452b3866"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "activity_log" DROP CONSTRAINT "FK_81615294532ca4b6c70abd1b2e6"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_attendance" DROP CONSTRAINT "FK_eb55a6cfa978d8b9bcc72a3182f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_attendance" DROP CONSTRAINT "FK_de6daed8881deba621a3f129a7d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_trips" DROP CONSTRAINT "FK_d11ed93dbb27d95431103e40f1f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_registrations" DROP CONSTRAINT "FK_cb5a603ba1b188de121e27bfaab"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_registrations" DROP CONSTRAINT "FK_ba5f24217cbf52587bac1eee6f9"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transport_registrations" DROP CONSTRAINT "FK_b20c2355c930a11e4e38d7a7387"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" DROP CONSTRAINT "FK_b23c65e50a758245a33ee35fda1"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "user_roles" DROP CONSTRAINT "FK_87b8888186ca9769c960e926870"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_17022daf3f885f7d35423e9971e"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "role_permissions" DROP CONSTRAINT "FK_178199805b901ccd220ab7740ec"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "shamcash_transactions" DROP CONSTRAINT "FK_34aa92bd6c20de5978564b30710"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_payments" DROP CONSTRAINT "FK_efef9ada5ac90d22fdc9000cca2"`,
+    );
+    await queryRunner.query(`DROP INDEX "public"."UQ_student_charges_booking"`);
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" DROP CONSTRAINT "FK_519acd046fcdd0ffc296bbd8fea"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" DROP CONSTRAINT "FK_593ce5f3072c3cbed544558df7d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" DROP CONSTRAINT "FK_30722d3a8d30a46d40d2036b580"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "student_charges" DROP CONSTRAINT "FK_d2f7fd61b497a2f1ddbd177eb47"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "notifications" DROP CONSTRAINT "FK_2726bde496d82b6401532ab1477"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_weekly_availabilities" DROP CONSTRAINT "FK_f9a84b9714027651aeeda1b684d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_unavailable_periods" DROP CONSTRAINT "FK_659c0c1482c4ddd7664f0da897d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_schedule_publications" DROP CONSTRAINT "FK_e6ff987da26ee511f1fe402c6ae"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructor_schedule_publications" DROP CONSTRAINT "FK_30a472957de36be8f912524b3a6"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_vehicle" DROP CONSTRAINT "FK_bc7375ae5c3e5e1d039195fb9e8"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_vehicle" DROP CONSTRAINT "FK_7d19eb8a5b620c778f1ab97552b"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_instructor" DROP CONSTRAINT "FK_1b50921e9fe137d4ba1e2048ae2"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_instructor" DROP CONSTRAINT "FK_ea53c876604f7c2f8a5829cc7b7"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_general" DROP CONSTRAINT "FK_e9039d3574fd23996198229ef4d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_employee" DROP CONSTRAINT "FK_8c8a35555b949822ba2369dd47c"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses_employee" DROP CONSTRAINT "FK_16efee0c597ad533c5577f315e7"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "expenses" DROP CONSTRAINT "FK_2f4f5d1c1e4243899954c63b391"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "employees" DROP CONSTRAINT "FK_2d83c53c3e553a48dadb9722e38"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "certificate_training_sessions" DROP CONSTRAINT "FK_2842387e73230300c9e3dcb2b10"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "certificate_exam_results" DROP CONSTRAINT "FK_a5d37142fad511bbc6e90faf298"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "certificates" DROP CONSTRAINT "FK_5fc025803a5eb21001b77ed6b1a"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_cancellations" DROP CONSTRAINT "FK_a03fe7251a8e9041e4758e2ad04"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking_cancellations" DROP CONSTRAINT "FK_19888a8d8875acfc9568cc52a58"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT "FK_9689ded8014ca12a5e1ccbce7ef"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT "FK_96920c53d9b83526064a5a9442a"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT "FK_a5e1b2e9afd34b7ebb638bafb6f"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT "FK_89225b629ac6de19df741b94e9d"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "students" DROP CONSTRAINT "FK_fb3eff90b11bddf7285f9b4e281"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "instructors" DROP CONSTRAINT "FK_2c06003dbc501aa07744f11e547"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "auth_sessions" DROP CONSTRAINT "FK_50ccaa6440288a06f0ba693ccc6"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "auth_otp_codes" DROP CONSTRAINT "FK_e60f7c6493d8dcf1a3daa83a729"`,
+    );
+    await queryRunner.query(`DROP TABLE "vehicle_unavailable_periods"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."vehicle_unavailable_periods_reason_type_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "activity_log"`);
+    await queryRunner.query(`DROP TABLE "transport_attendance"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."transport_attendance_attendance_status_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "transport_trips"`);
+    await queryRunner.query(`DROP TYPE "public"."transport_trips_status_enum"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."transport_trips_trip_type_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "transport_registrations"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."transport_registrations_registration_status_enum"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."transport_registrations_trip_type_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "settings"`);
+    await queryRunner.query(`DROP TYPE "public"."settings_value_type_enum"`);
+    await queryRunner.query(`DROP TABLE "user_roles"`);
+    await queryRunner.query(`DROP TABLE "role_permissions"`);
+    await queryRunner.query(`DROP TABLE "roles"`);
+    await queryRunner.query(`DROP TYPE "public"."roles_title_enum"`);
+    await queryRunner.query(`DROP TABLE "permissions"`);
+    await queryRunner.query(`DROP TABLE "shamcash_transactions"`);
+    await queryRunner.query(`DROP TABLE "student_payments"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."student_payments_payment_method_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "student_charges"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."student_charges_charge_status_enum"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."student_charges_charge_reason_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "notifications"`);
+    await queryRunner.query(`DROP TYPE "public"."notifications_status_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."notifications_channel_enum"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."notifications_notification_type_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "instructor_weekly_availabilities"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."instructor_weekly_availabilities_day_of_week_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "instructor_unavailable_periods"`);
+    await queryRunner.query(`DROP TABLE "instructor_schedule_publications"`);
+    await queryRunner.query(`DROP TABLE "instructor_price"`);
+    await queryRunner.query(`DROP TYPE "public"."instructor_price_type_enum"`);
+    await queryRunner.query(`DROP TABLE "expenses_vehicle"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."expenses_vehicle_reason_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "expenses_instructor"`);
+    await queryRunner.query(`DROP TABLE "expenses_general"`);
+    await queryRunner.query(`DROP TYPE "public"."expenses_general_type_enum"`);
+    await queryRunner.query(`DROP TABLE "expenses_employee"`);
+    await queryRunner.query(`DROP TYPE "public"."expenses_employee_type_enum"`);
+    await queryRunner.query(`DROP TABLE "expenses"`);
+    await queryRunner.query(`DROP TYPE "public"."expenses_status_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."expenses_category_enum"`);
+    await queryRunner.query(`DROP TABLE "employees"`);
+    await queryRunner.query(`DROP TABLE "certificate_training_sessions"`);
+    await queryRunner.query(`DROP TABLE "certificate_exam_results"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."certificate_exam_results_exam_result_enum"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."certificate_exam_results_exam_type_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "certificates"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."certificates_request_status_enum"`,
+    );
+    await queryRunner.query(`DROP TYPE "public"."certificates_category_enum"`);
+    await queryRunner.query(`DROP TABLE "lesson_price"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."lesson_price_vehicle_source_enum"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."lesson_price_training_type_enum"`,
+    );
+    await queryRunner.query(
+      `DROP TYPE "public"."lesson_price_instructor_gender_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "booking_cancellations"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."booking_cancellations_cancellation_party_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "booking"`);
+    await queryRunner.query(`DROP TYPE "public"."booking_training_type_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."booking_payment_status_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."booking_booking_status_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."booking_vehicle_source_enum"`);
+    await queryRunner.query(`DROP TABLE "vehicles"`);
+    await queryRunner.query(`DROP TYPE "public"."vehicles_status_enum"`);
+    await queryRunner.query(`DROP TYPE "public"."vehicles_type_enum"`);
+    await queryRunner.query(`DROP TABLE "students"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."students_student_status_enum"`,
+    );
+    await queryRunner.query(`DROP TABLE "instructors"`);
+    await queryRunner.query(
+      `DROP TYPE "public"."instructors_instructor_type_enum"`,
+    );
+    await queryRunner.query(`DROP TYPE "public"."instructors_gender_enum"`);
+    await queryRunner.query(`DROP TABLE "auth_sessions"`);
+    await queryRunner.query(`DROP TABLE "auth_otp_codes"`);
+    await queryRunner.query(`DROP TYPE "public"."auth_otp_codes_purpose_enum"`);
+    await queryRunner.query(`DROP TABLE "users"`);
+    await queryRunner.query(`DROP TYPE "public"."users_account_status_enum"`);
+  }
 }

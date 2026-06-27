@@ -14,13 +14,17 @@ import { VehicleUnavailablePeriod } from '../vehicles/vehicle-unavailable-period
 import { Student } from '../students/student.entity';
 import { StudentCharge } from '../payments/student-charge.entity';
 import { StudentPayment } from '../payments/student-payment.entity';
+import { ShamcashTransaction } from '../payments/shamcash-transaction.entity';
+import { ShamcashModule } from '../payments/shamcash/shamcash.module';
 import { Expense } from '../expenses/expense.entity';
 import { ExpenseInstructor } from '../expenses/expense-instructor.entity';
 import { InstructorPrice } from '../expenses/instructor-price.entity';
 import { Setting } from '../settings/setting.entity';
 import { User } from '../users/user.entity';
+import { BookingExpiryService } from './booking-expiry.service';
 import { BookingService } from './booking.service';
 import { ReceptionBookingController } from './reception-booking.controller';
+import { StudentBookingController } from './student-booking.controller';
 
 @Module({
   imports: [
@@ -37,6 +41,7 @@ import { ReceptionBookingController } from './reception-booking.controller';
       Student,
       StudentCharge,
       StudentPayment,
+      ShamcashTransaction,
       Expense,
       ExpenseInstructor,
       InstructorPrice,
@@ -45,9 +50,10 @@ import { ReceptionBookingController } from './reception-booking.controller';
     ]),
     AuthModule,
     NotificationsModule,
+    ShamcashModule,
   ],
-  controllers: [ReceptionBookingController],
-  providers: [BookingService],
+  controllers: [ReceptionBookingController, StudentBookingController],
+  providers: [BookingService, BookingExpiryService],
   exports: [BookingService],
 })
 export class BookingModule {}
