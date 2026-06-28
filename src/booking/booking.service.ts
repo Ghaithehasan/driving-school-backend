@@ -35,7 +35,6 @@ import { LessonPrice } from './lesson-price.entity';
 import { Instructor } from '../instructors/instructor.entity';
 import { InstructorWeeklyAvailability } from '../instructors/instructor-weekly-availability.entity';
 import { InstructorUnavailablePeriod } from '../instructors/instructor-unavailable-period.entity';
-import { InstructorSchedulePublication } from '../instructors/instructor-schedule-publication.entity';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { VehicleUnavailablePeriod } from '../vehicles/vehicle-unavailable-period.entity';
 import { Student } from '../students/student.entity';
@@ -98,8 +97,6 @@ export class BookingService {
     private readonly weeklyAvailRepo: Repository<InstructorWeeklyAvailability>,
     @InjectRepository(InstructorUnavailablePeriod)
     private readonly instrUnavailRepo: Repository<InstructorUnavailablePeriod>,
-    @InjectRepository(InstructorSchedulePublication)
-    private readonly schedPubRepo: Repository<InstructorSchedulePublication>,
     @InjectRepository(Vehicle)
     private readonly vehicleRepo: Repository<Vehicle>,
     @InjectRepository(VehicleUnavailablePeriod)
@@ -236,6 +233,28 @@ export class BookingService {
       return periodStart < slotEnd;
     }
     return periodStart < slotEnd && periodEnd > slotStart;
+  }
+
+  /** Merges contiguous or overlapping weekly availability periods sorted by startTime.
+   *  E.g. 08:00–11:00 + 11:00–14:00 → 08:00–14:00 so a lesson crossing 11:00 is not wrongly rejected. */
+  private mergeWeeklyPeriods(
+    periods: InstructorWeeklyAvailability[],
+  ): { startTime: string; endTime: string }[] {
+    const sorted = [...periods].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime),
+    );
+    if (sorted.length === 0) return [];
+    const result = [{ startTime: sorted[0].startTime, endTime: sorted[0].endTime }];
+    for (let i = 1; i < sorted.length; i++) {
+      const last = result[result.length - 1];
+      if (sorted[i].startTime <= last.endTime) {
+        // Contiguous or overlapping — extend the end if needed
+        if (sorted[i].endTime > last.endTime) last.endTime = sorted[i].endTime;
+      } else {
+        result.push({ startTime: sorted[i].startTime, endTime: sorted[i].endTime });
+      }
+    }
+    return result;
   }
 
   // ─── 0. CHECK STUDENT REBOOKING CREDIT ─────────────────────────────────────
@@ -429,12 +448,15 @@ export class BookingService {
       .where('i.id IN (:...ids)', { ids: instructorIds })
       .getMany();
 
+    // Group all periods per (instructor, day) — multiple split-shift periods per day are allowed.
     const availByInstructorDay = new Map<
       string,
-      InstructorWeeklyAvailability
+      InstructorWeeklyAvailability[]
     >();
     for (const a of weeklyAvails) {
-      availByInstructorDay.set(`${a.instructor.id}:${a.dayOfWeek}`, a);
+      const key = `${a.instructor.id}:${a.dayOfWeek}`;
+      if (!availByInstructorDay.has(key)) availByInstructorDay.set(key, []);
+      availByInstructorDay.get(key)!.push(a);
     }
 
     // D) Instructor unavailable periods in window — startAt/endAt are TIMESTAMP (local)
@@ -544,75 +566,82 @@ export class BookingService {
         );
 
         const dayEnum = JS_DAY_MAP[localUTCMidnight.getUTCDay()];
-        const avail = availByInstructorDay.get(`${instructor.id}:${dayEnum}`);
-        if (!avail) continue;
+        const dayPeriods = availByInstructorDay.get(`${instructor.id}:${dayEnum}`);
+        if (!dayPeriods || dayPeriods.length === 0) continue;
 
-        // Slot boundaries in local wall-clock frame — no offset subtraction needed.
-        const [sh, sm] = avail.startTime.split(':').map(Number);
-        const [eh, em] = avail.endTime.split(':').map(Number);
+        // Merge contiguous periods before generating slots so a lesson spanning
+        // the boundary of two touching periods (e.g. 08:00–11:00 + 11:00–14:00)
+        // is not wrongly rejected.
+        const mergedPeriods = this.mergeWeeklyPeriods(dayPeriods);
 
-        const availStart = new Date(
-          localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000,
-        );
-        const availEnd = new Date(
-          localUTCMidnight.getTime() + (eh * 60 + em) * 60_000,
-        );
+        for (const period of mergedPeriods) {
+          // Slot boundaries in local wall-clock frame — no offset subtraction needed.
+          const [sh, sm] = period.startTime.split(':').map(Number);
+          const [eh, em] = period.endTime.split(':').map(Number);
 
-        let slotStart = new Date(availStart);
-
-        while (slotStart.getTime() + durationMs <= availEnd.getTime()) {
-          const slotEnd = new Date(slotStart.getTime() + durationMs);
-
-          // Skip past slots (compare against local now)
-          if (slotStart <= localNow) {
-            slotStart = slotEnd;
-            continue;
-          }
-
-          // D) Drop if instructor unavailable period overlaps
-          const instrBlocked = myUnavails.some((p) =>
-            this.overlaps(slotStart, slotEnd, p.startAt, p.endAt),
+          const availStart = new Date(
+            localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000,
           );
-          if (instrBlocked) {
-            slotStart = slotEnd;
-            continue;
-          }
-
-          // E) Drop if instructor has a reserving booking that overlaps
-          const instrBooked = myBookings.some((b) =>
-            this.overlaps(slotStart, slotEnd, b.startAt, b.endAt),
+          const availEnd = new Date(
+            localUTCMidnight.getTime() + (eh * 60 + em) * 60_000,
           );
-          if (instrBooked) {
-            slotStart = slotEnd;
-            continue;
-          }
 
-          // G) SCHOOL_CAR: drop if no vehicle is free
-          if (vehicleSource === VehicleSource.SCHOOL_CAR) {
-            const hasVehicle = activeVehicles.some((v) => {
-              const vUnavail = vehicleUnavails.some(
-                (vp) =>
-                  vp.vehicle.id === v.id &&
-                  this.overlaps(slotStart, slotEnd, vp.startAt, vp.endAt),
-              );
-              if (vUnavail) return false;
+          let slotStart = new Date(availStart);
 
-              const vBooked = vehicleBookings.some(
-                (b) =>
-                  b.vehicle?.id === v.id &&
-                  this.overlaps(slotStart, slotEnd, b.startAt, b.endAt),
-              );
-              return !vBooked;
-            });
+          while (slotStart.getTime() + durationMs <= availEnd.getTime()) {
+            const slotEnd = new Date(slotStart.getTime() + durationMs);
 
-            if (!hasVehicle) {
+            // Skip past slots (compare against local now)
+            if (slotStart <= localNow) {
               slotStart = slotEnd;
               continue;
             }
-          }
 
-          freeSlots.push(this.toLocalSlot(slotStart, slotEnd));
-          slotStart = slotEnd;
+            // D) Drop if instructor unavailable period overlaps
+            const instrBlocked = myUnavails.some((p) =>
+              this.overlaps(slotStart, slotEnd, p.startAt, p.endAt),
+            );
+            if (instrBlocked) {
+              slotStart = slotEnd;
+              continue;
+            }
+
+            // E) Drop if instructor has a reserving booking that overlaps
+            const instrBooked = myBookings.some((b) =>
+              this.overlaps(slotStart, slotEnd, b.startAt, b.endAt),
+            );
+            if (instrBooked) {
+              slotStart = slotEnd;
+              continue;
+            }
+
+            // G) SCHOOL_CAR: drop if no vehicle is free
+            if (vehicleSource === VehicleSource.SCHOOL_CAR) {
+              const hasVehicle = activeVehicles.some((v) => {
+                const vUnavail = vehicleUnavails.some(
+                  (vp) =>
+                    vp.vehicle.id === v.id &&
+                    this.overlaps(slotStart, slotEnd, vp.startAt, vp.endAt),
+                );
+                if (vUnavail) return false;
+
+                const vBooked = vehicleBookings.some(
+                  (b) =>
+                    b.vehicle?.id === v.id &&
+                    this.overlaps(slotStart, slotEnd, b.startAt, b.endAt),
+                );
+                return !vBooked;
+              });
+
+              if (!hasVehicle) {
+                slotStart = slotEnd;
+                continue;
+              }
+            }
+
+            freeSlots.push(this.toLocalSlot(slotStart, slotEnd));
+            slotStart = slotEnd;
+          }
         }
       }
 
@@ -1247,15 +1276,19 @@ export class BookingService {
         lock: { mode: 'pessimistic_write' },
       });
 
-      if (!booking) throw new NotFoundException('Booking not found');
+      if (!booking) throw new NotFoundException('الحجز غير موجود');
+
+      if (booking.paymentStatus === PaymentStatus.FULLY_PAID) {
+        throw new BadRequestException('تم تسجيل الدفع الكامل لهذا الحجز مسبقاً');
+      }
       if (booking.bookingStatus !== BookingStatus.BOOKED) {
         throw new BadRequestException(
-          'Booking must be in BOOKED status to pay remainder',
+          `لا يمكن استيفاء الدفع: حالة الحجز الحالية هي "${booking.bookingStatus}"`,
         );
       }
       if (booking.paymentStatus !== PaymentStatus.DEPOSIT_PAID) {
         throw new BadRequestException(
-          'Booking must be in DEPOSIT_PAID status to pay remainder',
+          `لا يمكن استيفاء الدفع: الحالة المالية الحالية هي "${booking.paymentStatus}"`,
         );
       }
 
@@ -1308,44 +1341,15 @@ export class BookingService {
         },
       );
 
-      // 5) Mark booking FULLY_PAID and COMPLETED atomically.
+      // 5) Mark booking as FULLY_PAID — status stays BOOKED until lesson time passes.
+      // Auto-complete cron will flip to COMPLETED (or NO_SHOW) after endAt.
       await em.update(
         Booking,
         { id: bookingId },
-        {
-          paymentStatus: PaymentStatus.FULLY_PAID,
-          bookingStatus: BookingStatus.COMPLETED,
-        },
+        { paymentStatus: PaymentStatus.FULLY_PAID },
       );
 
-      // 6) Instructor payout — idempotent (UNIQUE(booking_id) guards double-creation)
-      const existingPayout = await em.findOne(ExpenseInstructor, {
-        where: { booking: { id: bookingId } },
-      });
-
-      if (!existingPayout) {
-        const instrPrice = await this.getEffectiveInstructorPrice(
-          booking.instructor.gender,
-          booking.createdAt,
-        );
-        const expense = await em.save(Expense, {
-          category: ExpenseCategory.INSTRUCTOR,
-          amount: instrPrice.toFixed(2),
-          expenseDate: new Date(now.getTime() + SCHOOL_TZ_OFFSET_MS)
-            .toISOString()
-            .split('T')[0],
-          status: ExpenseStatus.PAID,
-          note: null,
-          employee: null,
-        } as Expense);
-
-        await em.save(ExpenseInstructor, {
-          booking,
-          expense,
-        } as ExpenseInstructor);
-      }
-
-      return { message: 'Lesson completed and payment recorded', bookingId };
+      return { message: 'Payment recorded successfully', bookingId };
     });
   }
 
@@ -1680,13 +1684,14 @@ export class BookingService {
     // startAt is local wall-clock (TIMESTAMP); getUTC* returns local values directly.
     const dayEnum = JS_DAY_MAP[startAt.getUTCDay()];
 
-    const avail = await em.findOne(InstructorWeeklyAvailability, {
+    // Fetch ALL periods for this day — multiple split-shift periods are allowed.
+    const periods = await em.find(InstructorWeeklyAvailability, {
       where: { instructor: { id: instructorId }, dayOfWeek: dayEnum },
     });
-    if (!avail) return false;
+    if (periods.length === 0) return false;
 
-    const [sh, sm] = avail.startTime.split(':').map(Number);
-    const [eh, em2] = avail.endTime.split(':').map(Number);
+    // Merge contiguous periods so a lesson spanning two touching periods is not wrongly rejected.
+    const merged = this.mergeWeeklyPeriods(periods);
     const localUTCMidnight = new Date(
       Date.UTC(
         startAt.getUTCFullYear(),
@@ -1694,14 +1699,16 @@ export class BookingService {
         startAt.getUTCDate(),
       ),
     );
-    const availStart = new Date(
-      localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000,
-    );
-    const availEnd = new Date(
-      localUTCMidnight.getTime() + (eh * 60 + em2) * 60_000,
-    );
 
-    if (startAt < availStart || endAt > availEnd) return false;
+    // The lesson must fit ENTIRELY within one merged period (must not span a real break).
+    const fitsInAPeriod = merged.some((p) => {
+      const [sh, sm] = p.startTime.split(':').map(Number);
+      const [eh, em2] = p.endTime.split(':').map(Number);
+      const availStart = new Date(localUTCMidnight.getTime() + (sh * 60 + sm) * 60_000);
+      const availEnd   = new Date(localUTCMidnight.getTime() + (eh * 60 + em2) * 60_000);
+      return startAt >= availStart && endAt <= availEnd;
+    });
+    if (!fitsInAPeriod) return false;
 
     // D) Instructor unavailable periods — startAt/endAt are TIMESTAMP (local frame)
     const instrUnavail = await em
@@ -1779,5 +1786,206 @@ export class BookingService {
     });
 
     return vehicles.filter((v) => !blockedIds.has(v.id));
+  }
+
+  // ─── 7. AUTO-COMPLETE EXPIRED BOOKINGS (called by cron) ─────────────────────
+
+  async processExpiredBookings(): Promise<void> {
+    const localNow = new Date(new Date().getTime() + SCHOOL_TZ_OFFSET_MS);
+    const graceMinutes = await this.getNumericSetting('booking_completion_grace_minutes', 30);
+    const graceCutoff = new Date(localNow.getTime() - graceMinutes * 60 * 1000);
+
+    const expired = await this.bookingRepo
+      .createQueryBuilder('b')
+      .innerJoinAndSelect('b.instructor', 'i')
+      .innerJoinAndSelect('b.student', 's')
+      .innerJoinAndSelect('s.user', 'su')
+      .where('b.bookingStatus = :status', { status: BookingStatus.BOOKED })
+      .andWhere('b.endAt < :graceCutoff', { graceCutoff })
+      .getMany();
+
+    for (const booking of expired) {
+      const isFullyPaid = booking.paymentStatus === PaymentStatus.FULLY_PAID;
+      const newStatus = isFullyPaid ? BookingStatus.COMPLETED : BookingStatus.NO_SHOW;
+      const newPaymentStatus = isFullyPaid
+        ? undefined
+        : PaymentStatus.DEPOSIT_NON_REFUNDABLE;
+
+      let processed = false;
+
+      await this.dataSource.transaction(async (em) => {
+        // Conditional UPDATE: only proceeds if still BOOKED (idempotent against concurrent runs)
+        const result = await em
+          .createQueryBuilder()
+          .update(Booking)
+          .set({
+            bookingStatus: newStatus,
+            ...(newPaymentStatus ? { paymentStatus: newPaymentStatus } : {}),
+          })
+          .where('id = :id', { id: booking.id })
+          .andWhere('bookingStatus = :expected', { expected: BookingStatus.BOOKED })
+          .execute();
+
+        if (!result.affected || result.affected === 0) return; // already processed
+        processed = true;
+
+        if (isFullyPaid) {
+          // Save Expense first — any error here propagates → transaction rolls back (COMPLETED undone)
+          const instrPrice = await this.getEffectiveInstructorPrice(
+            booking.instructor.gender,
+            booking.startAt,
+          );
+          const expenseDate = booking.endAt.toISOString().slice(0, 10);
+          const expense = await em.save(Expense, {
+            category: ExpenseCategory.INSTRUCTOR,
+            amount: instrPrice.toFixed(2),
+            expenseDate,
+            status: ExpenseStatus.UNPAID,
+            note: null,
+            employee: null,
+          } as Expense);
+          // UNIQUE(booking_id) is the final guard. A rare concurrent INSERT raises 23505,
+          // which aborts THIS transaction → full rollback (status + orphan Expense undone).
+          // The cron retries next cycle. No manual delete: a query after 23505 fails with 25P02.
+          await em.save(ExpenseInstructor, { booking, expense } as ExpenseInstructor);
+        }
+      });
+
+      if (!processed) continue;
+
+      // Notify student after transaction (non-blocking)
+      this.notificationsService.sendAsync({
+        recipientUser: booking.student.user,
+        title: isFullyPaid ? 'إتمام الجلسة التدريبية' : 'غياب عن الجلسة',
+        body: isFullyPaid
+          ? 'تم إتمام جلستك التدريبية بنجاح'
+          : 'تم تسجيل غيابك عن الجلسة التدريبية',
+        notificationType: isFullyPaid
+          ? NotificationType.BOOKING_CONFIRMED
+          : NotificationType.GENERAL,
+      }).catch(() => undefined);
+    }
+  }
+
+  // ─── 8. MANUAL STATUS OVERRIDE (receptionist) ───────────────────────────────
+
+  async manualUpdateBookingStatus(bookingId: number, newStatus: BookingStatus) {
+    let notify = false;
+    let studentUser: User | undefined;
+
+    await this.dataSource.transaction(async (em) => {
+      // Read with lock so concurrent cron UPDATE sees affected=0 and skips
+      const booking = await em.findOne(Booking, {
+        where: { id: bookingId },
+        relations: { student: { user: true }, instructor: true },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!booking) throw new NotFoundException('Booking not found');
+
+      const allowed = [BookingStatus.BOOKED, BookingStatus.COMPLETED, BookingStatus.NO_SHOW];
+      if (!allowed.includes(booking.bookingStatus)) {
+        throw new BadRequestException(
+          'يمكن تعديل الحالة يدوياً فقط للحجوزات بحالة: BOOKED أو COMPLETED أو NO_SHOW',
+        );
+      }
+      if (booking.bookingStatus === newStatus) {
+        throw new BadRequestException('الحجز يحمل هذه الحالة بالفعل');
+      }
+
+      studentUser = booking.student.user;
+
+      if (newStatus === BookingStatus.COMPLETED) {
+        const existing = await em.findOne(ExpenseInstructor, {
+          where: { booking: { id: bookingId } },
+        });
+        if (!existing) {
+          const instrPrice = await this.getEffectiveInstructorPrice(
+            booking.instructor.gender,
+            booking.startAt,
+          );
+          const expenseDate = booking.endAt.toISOString().slice(0, 10);
+          const expense = await em.save(Expense, {
+            category: ExpenseCategory.INSTRUCTOR,
+            amount: instrPrice.toFixed(2),
+            expenseDate,
+            status: ExpenseStatus.UNPAID,
+            note: null,
+            employee: null,
+          } as Expense);
+          // UNIQUE(booking_id) is the final guard. A rare concurrent INSERT raises 23505,
+          // which aborts THIS transaction → full rollback (status + orphan Expense undone).
+          // No manual delete: a query after 23505 fails with 25P02.
+          await em.save(ExpenseInstructor, { booking, expense } as ExpenseInstructor);
+        }
+
+        // If correcting a wrongly-auto-NO_SHOW booking, restore paymentStatus so
+        // receptionist can call payRemainder if needed.
+        const restoredPaymentStatus =
+          booking.paymentStatus === PaymentStatus.DEPOSIT_NON_REFUNDABLE
+            ? PaymentStatus.DEPOSIT_PAID
+            : undefined;
+
+        await em
+          .createQueryBuilder()
+          .update(Booking)
+          .set({
+            bookingStatus: BookingStatus.COMPLETED,
+            ...(restoredPaymentStatus ? { paymentStatus: restoredPaymentStatus } : {}),
+          })
+          .where('id = :id', { id: bookingId })
+          .execute();
+
+        notify = true;
+      } else if (newStatus === BookingStatus.NO_SHOW) {
+        // NO_SHOW: remove UNPAID expense if exists, burn deposit
+        const existing = await em.findOne(ExpenseInstructor, {
+          where: { booking: { id: bookingId } },
+          relations: { expense: true },
+        });
+        if (existing) {
+          if (existing.expense.status === ExpenseStatus.PAID) {
+            throw new BadRequestException(
+              'لا يمكن تغيير الحالة إلى NO_SHOW: مستحقات المدرب عن هذا الدرس دُفعت بالفعل.',
+            );
+          }
+          await em.delete(ExpenseInstructor, { id: existing.id });
+          await em.delete(Expense, { id: existing.expense.id });
+        }
+        await em
+          .createQueryBuilder()
+          .update(Booking)
+          .set({
+            bookingStatus: BookingStatus.NO_SHOW,
+            paymentStatus: PaymentStatus.DEPOSIT_NON_REFUNDABLE,
+          })
+          .where('id = :id', { id: bookingId })
+          .execute();
+
+        notify = true;
+      } else {
+        // BOOKED: plain status revert, no instructor dues, no notification
+        await em
+          .createQueryBuilder()
+          .update(Booking)
+          .set({ bookingStatus: BookingStatus.BOOKED })
+          .where('id = :id', { id: bookingId })
+          .execute();
+      }
+    });
+
+    if (notify && studentUser) {
+      await this.notificationsService.sendAsync({
+        recipientUser: studentUser,
+        title: newStatus === BookingStatus.COMPLETED ? 'إتمام الجلسة التدريبية' : 'غياب عن الجلسة',
+        body: newStatus === BookingStatus.COMPLETED
+          ? 'تم إتمام جلستك التدريبية بنجاح'
+          : 'تم تسجيل غيابك عن الجلسة التدريبية',
+        notificationType: newStatus === BookingStatus.COMPLETED
+          ? NotificationType.BOOKING_CONFIRMED
+          : NotificationType.GENERAL,
+      });
+    }
+
+    return { message: 'تم تحديث حالة الحجز', bookingId, newStatus };
   }
 }

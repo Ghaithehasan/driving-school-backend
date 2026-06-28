@@ -168,6 +168,18 @@ const PERMISSIONS: { code: string; module: string; description: string }[] = [
   { code: 'expenses.create', module: 'expenses', description: 'إضافة مصروف' },
   { code: 'expenses.read', module: 'expenses', description: 'عرض المصروفات' },
   { code: 'expenses.update', module: 'expenses', description: 'تعديل مصروف' },
+  { code: 'expenses.pay', module: 'expenses', description: 'دفع مستحقات المدرب' },
+
+  {
+    code: 'instructor.schedule.update',
+    module: 'instructors',
+    description: 'تعديل جدول المدرب الأسبوعي',
+  },
+  {
+    code: 'instructor.leave.create',
+    module: 'instructors',
+    description: 'تسجيل إجازة مدرب',
+  },
 
   { code: 'settings.read', module: 'settings', description: 'عرض الإعدادات' },
   {
@@ -200,6 +212,8 @@ const ROLE_PERMISSIONS: Record<RoleTitle, string[]> = {
     'students.create',
     'students.read',
     'instructors.read',
+    'instructor.schedule.update',
+    'instructor.leave.create',
     'vehicles.read',
     'vehicles.create',
     'vehicles.update',
@@ -222,6 +236,7 @@ const ROLE_PERMISSIONS: Record<RoleTitle, string[]> = {
 
   [RoleTitle.ACCOUNTANT]: [
     'students.read',
+    'instructors.read',
     'bookings.read',
     'payments.read',
     'payments.verify',
@@ -229,6 +244,7 @@ const ROLE_PERMISSIONS: Record<RoleTitle, string[]> = {
     'expenses.create',
     'expenses.read',
     'expenses.update',
+    'expenses.pay',
     'vehicles.read',
     'vehicles.fuel',
     'notifications.read',
@@ -1038,6 +1054,7 @@ async function seed() {
             instructor: { id: instructor.id },
             startAt,
           },
+          relations: { student: true },
         });
         if (existing) {
           // Update statuses in case seed data was corrected after initial insert
@@ -1284,6 +1301,12 @@ async function seed() {
           value: '15',
           valueType: SettingValueType.NUMBER,
           description: 'مدة الحجز المعلق قبل انتهائه (موبايل)',
+        },
+        {
+          key: 'booking_completion_grace_minutes',
+          value: '30',
+          valueType: SettingValueType.NUMBER,
+          description: 'مهلة السماح بعد انتهاء الدرس قبل وسمه تلقائياً (COMPLETED أو NO_SHOW)',
         },
         {
           key: 'shamcash_receiver_name',

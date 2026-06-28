@@ -21,48 +21,48 @@ import { Vehicle } from '../vehicles/vehicle.entity';
 @Entity('booking')
 export class Booking {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'vehicle_source', type: 'enum', enum: VehicleSource })
-  vehicleSource: VehicleSource;
+  vehicleSource!: VehicleSource;
 
   @Column({ name: 'booking_status', type: 'enum', enum: BookingStatus })
-  bookingStatus: BookingStatus;
+  bookingStatus!: BookingStatus;
 
   @Column({ name: 'payment_status', type: 'enum', enum: PaymentStatus })
-  paymentStatus: PaymentStatus;
+  paymentStatus!: PaymentStatus;
 
   @Column({ name: 'training_type', type: 'enum', enum: TrainingType })
-  trainingType: TrainingType;
+  trainingType!: TrainingType;
 
   @Column({ name: 'start_at', type: 'timestamp' })
-  startAt: Date;
+  startAt!: Date;
 
   @Column({ name: 'end_at', type: 'timestamp' })
-  endAt: Date;
+  endAt!: Date;
 
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
-  lockedUntil: Date | null;
+  lockedUntil!: Date | null;
 
   @ManyToOne(() => Student, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'student_id' })
-  student: Student;
+  student!: Student;
 
   @ManyToOne(() => Instructor, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'instructor_id' })
-  instructor: Instructor;
+  instructor!: Instructor;
 
   @ManyToOne(() => Vehicle, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'vehicle_id' })
-  vehicle: Vehicle | null;
+  vehicle!: Vehicle | null;
 
   @OneToOne(() => Booking, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'replaced_booking_id' })
-  replacedBooking: Booking | null;
+  replacedBooking!: Booking | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

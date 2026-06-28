@@ -11,23 +11,23 @@ import { Gender, TrainingType, VehicleSource } from '../common/enums/index';
 @Unique(['instructorGender', 'trainingType', 'vehicleSource', 'effectiveFrom'])
 export class LessonPrice {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'instructor_gender', type: 'enum', enum: Gender })
-  instructorGender: Gender;
+  instructorGender!: Gender;
 
   @Column({ name: 'training_type', type: 'enum', enum: TrainingType })
-  trainingType: TrainingType;
+  trainingType!: TrainingType;
 
   @Column({ name: 'vehicle_source', type: 'enum', enum: VehicleSource })
-  vehicleSource: VehicleSource;
+  vehicleSource!: VehicleSource;
 
   @Column({ type: 'numeric', precision: 10, scale: 2 })
-  price: string;
+  price!: string;
 
   @Column({ name: 'effective_from', type: 'date' })
-  effectiveFrom: string;
+  effectiveFrom!: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt: Date;
+  createdAt!: Date;
 }
