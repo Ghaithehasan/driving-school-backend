@@ -14,7 +14,10 @@ export class UserRole {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id!: number;
 
-  @ManyToOne(() => User, (u) => u.userRoles, { nullable: false, onDelete: 'CASCADE' })
+  @ManyToOne(() => User, (u) => u.userRoles, {
+    nullable: false,
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'user_id' })
   user!: User;
 

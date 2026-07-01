@@ -26,7 +26,11 @@ export class AddBtreeGistConstraints1782000000001 implements MigrationInterface 
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_vehicle_overlap"`);
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_instructor_overlap"`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_vehicle_overlap"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_instructor_overlap"`,
+    );
   }
 }

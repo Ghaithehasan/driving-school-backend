@@ -12,10 +12,20 @@ export class ShamcashTransaction {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
   id!: number;
 
-  @Column({ name: 'transaction_id', type: 'varchar', length: 100, unique: true })
+  @Column({
+    name: 'transaction_id',
+    type: 'varchar',
+    length: 100,
+    unique: true,
+  })
   transactionId!: string;
 
-  @Column({ name: 'sender_account', type: 'varchar', length: 50, nullable: true })
+  @Column({
+    name: 'sender_account',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
   senderAccount!: string | null;
 
   @Column({

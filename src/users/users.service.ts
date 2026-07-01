@@ -15,9 +15,7 @@ import { CreateEmployeeDto } from './dto/create-employee.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   async createStudent(dto: CreateStudentDto) {
     return this.dataSource.transaction(async (manager) => {
@@ -45,7 +43,9 @@ export class UsersService {
 
   public async createInstructor(dto: CreateInstructorDto) {
     return this.dataSource.transaction(async (manager) => {
-      const existing = await manager.findOne(User, { where: { phone: dto.phone } });
+      const existing = await manager.findOne(User, {
+        where: { phone: dto.phone },
+      });
       if (existing) throw new ConflictException('رقم الهاتف مستخدم مسبقاً');
 
       const passwordHash = await argon2.hash(dto.password);
@@ -84,13 +84,14 @@ export class UsersService {
         accountStatus: user.accountStatus,
         mustChangePassword: user.mustChangePassword,
       };
-
     });
   }
 
-  public async createEmployee (dto: CreateEmployeeDto) {
+  public async createEmployee(dto: CreateEmployeeDto) {
     return this.dataSource.transaction(async (manager) => {
-      const existing = await manager.findOne(User, { where: { phone: dto.phone } });
+      const existing = await manager.findOne(User, {
+        where: { phone: dto.phone },
+      });
       if (existing) throw new ConflictException('رقم الهاتف مستخدم مسبقاً');
 
       const passwordHash = await argon2.hash(dto.password);
@@ -126,12 +127,12 @@ export class UsersService {
         phone: user.phone,
         role: dto.role,
         hireDate: employee.hireDate,
-        monthlySalary: employee.monthlySalary ? Number(employee.monthlySalary) : null,
+        monthlySalary: employee.monthlySalary
+          ? Number(employee.monthlySalary)
+          : null,
         accountStatus: user.accountStatus,
         mustChangePassword: user.mustChangePassword,
       };
-
     });
   }
-
 }

@@ -161,7 +161,7 @@ export class CreateInitialSchema1781915063011 implements MigrationInterface {
       `CREATE TABLE "notifications" ("id" BIGSERIAL NOT NULL, "title" character varying(150) NOT NULL, "body" text NOT NULL, "notification_type" "public"."notifications_notification_type_enum" NOT NULL, "channel" "public"."notifications_channel_enum" NOT NULL, "status" "public"."notifications_status_enum" NOT NULL, "sent_at" TIMESTAMP WITH TIME ZONE, "read_at" TIMESTAMP WITH TIME ZONE, "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "recipient_user_id" bigint NOT NULL, CONSTRAINT "PK_6a72c3c0f683f6462415e653c3a" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
-      `CREATE TYPE "public"."student_charges_charge_reason_enum" AS ENUM('LESSON', 'LESSON_DEPOSIT', 'LESSON_REMAINDER', 'CERTIFICATE_FEE', 'TRANSPORT_LECTURE', 'TRANSPORT_EXAM', 'REEXAM_THEORY', 'REEXAM_PRACTICAL', 'OTHER')`,
+      `CREATE TYPE "public"."student_charges_charge_reason_enum" AS ENUM('LESSON', 'CERTIFICATE_FEE', 'TRANSPORT_LECTURE', 'TRANSPORT_EXAM', 'REEXAM_THEORY', 'REEXAM_PRACTICAL', 'OTHER')`,
     );
     await queryRunner.query(
       `CREATE TYPE "public"."student_charges_charge_status_enum" AS ENUM('PAID', 'UNPAID', 'PARTIALLY_PAID', 'CANCELLED')`,

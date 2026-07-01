@@ -1,9 +1,4 @@
-import {
-  Entity,
-  JoinColumn,
-  OneToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Entity, JoinColumn, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { Booking } from '../booking/booking.entity';
 import { Expense } from './expense.entity';
 

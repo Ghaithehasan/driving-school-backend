@@ -12,7 +12,14 @@ import { UsersService } from './users.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Student, Instructor, Employee, Role, UserRole]),
+    TypeOrmModule.forFeature([
+      User,
+      Student,
+      Instructor,
+      Employee,
+      Role,
+      UserRole,
+    ]),
     AuthModule,
   ],
   controllers: [UsersController],

@@ -24,10 +24,9 @@ export class EmployeesService {
     }
 
     if (query.search) {
-      qb.andWhere(
-        '(user.name ILIKE :search OR user.phone ILIKE :search)',
-        { search: `%${query.search}%` },
-      );
+      qb.andWhere('(user.name ILIKE :search OR user.phone ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
     }
 
     const employees = await qb.getMany();
@@ -62,7 +61,9 @@ export class EmployeesService {
       phone: employee.user.phone,
       role: employee.user.userRoles[0]?.role.title ?? null,
       hireDate: employee.hireDate,
-      monthlySalary: employee.monthlySalary ? Number(employee.monthlySalary) : null,
+      monthlySalary: employee.monthlySalary
+        ? Number(employee.monthlySalary)
+        : null,
       accountStatus: employee.user.accountStatus,
     };
   }

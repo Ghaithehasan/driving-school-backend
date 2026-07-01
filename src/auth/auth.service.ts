@@ -145,7 +145,11 @@ export class AuthService {
     });
 
     // تأكد إنه الجلسة تخص نفس المستخدم صاحب الـ access token.
-    if (session && Number(session.user.id) === Number(userId) && !session.revokedAt) {
+    if (
+      session &&
+      Number(session.user.id) === Number(userId) &&
+      !session.revokedAt
+    ) {
       session.revokedAt = new Date();
       await this.sessionRepo.save(session);
     }
@@ -216,7 +220,10 @@ export class AuthService {
       throw new BadRequestException('رمز التحقق غير صالح');
     }
 
-    const resetToken = await this.signResetToken(otp.user.id, otp.user.tokenVersion);
+    const resetToken = await this.signResetToken(
+      otp.user.id,
+      otp.user.tokenVersion,
+    );
     return { resetToken };
   }
 
@@ -229,11 +236,17 @@ export class AuthService {
   async registerRequestOtp(phone: string): Promise<ForgotPasswordResult> {
     const existing = await this.userRepo.findOne({ where: { phone } });
     if (existing) {
-      throw new ConflictException('رقم الهاتف لديه حساب مسبقاً، الرجاء تسجيل الدخول');
+      throw new ConflictException(
+        'رقم الهاتف لديه حساب مسبقاً، الرجاء تسجيل الدخول',
+      );
     }
 
     // الـ OTP هنا مرتبط بالرقم فقط (لا يوجد مستخدم بعد).
-    const code = await this.issueOtp(phone, OtpPurpose.PHONE_VERIFICATION, null);
+    const code = await this.issueOtp(
+      phone,
+      OtpPurpose.PHONE_VERIFICATION,
+      null,
+    );
 
     return {
       message: `تم إرسال رمز التحقق إلى الرقم ${phone}، صالح لمدة ${OTP_EXPIRY_MINUTES} دقائق`,
@@ -260,7 +273,11 @@ export class AuthService {
 
     // 2) ذرّياً: استهلك الـ OTP وأنشئ الحساب — لو فشل أحدهما يرجع كلاهما.
     const { user } = await this.dataSource.transaction(async (manager) => {
-      await manager.update(AuthOtpCode, { id: otp.id }, { consumedAt: new Date() });
+      await manager.update(
+        AuthOtpCode,
+        { id: otp.id },
+        { consumedAt: new Date() },
+      );
       return createStudentAccount(manager, {
         name: input.name,
         phone: input.phone,
@@ -281,7 +298,10 @@ export class AuthService {
    * الخطوة 3: تغيير كلمة المرور مقابل resetToken صالح (الصادر من verifyOtp).
    * يغيّر كلمة السر ويُبطل كل الجلسات القائمة.
    */
-  async resetPassword(resetToken: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(
+    resetToken: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     const payload = await this.verifyResetToken(resetToken);
 
     const user = await this.userRepo.findOne({ where: { id: payload.sub } });
@@ -297,10 +317,14 @@ export class AuthService {
 
     await this.dataSource.transaction(async (manager) => {
       // تغيير كلمة المرور
-      await manager.update(User, { id: user.id }, {
-        passwordHash,
-        mustChangePassword: false,
-      });
+      await manager.update(
+        User,
+        { id: user.id },
+        {
+          passwordHash,
+          mustChangePassword: false,
+        },
+      );
 
       // إبطال كل الجلسات مشان أي حدا سارق الحساب يطلع فوراً
       await manager.update(
@@ -337,7 +361,9 @@ export class AuthService {
       .where('ur.user_id = :userId', { userId })
       .getMany();
 
-    const unique = [...new Set(rolePermissions.map((rp) => rp.permission.code))];
+    const unique = [
+      ...new Set(rolePermissions.map((rp) => rp.permission.code)),
+    ];
     return unique.sort();
   }
 
@@ -493,13 +519,17 @@ export class AuthService {
     }
 
     if (otp.expiresAt.getTime() <= Date.now()) {
-      throw new BadRequestException('انتهت صلاحية رمز التحقق، اطلب رمزاً جديداً');
+      throw new BadRequestException(
+        'انتهت صلاحية رمز التحقق، اطلب رمزاً جديداً',
+      );
     }
 
     if (otp.attemptsCount >= OTP_MAX_ATTEMPTS) {
       otp.consumedAt = new Date();
       await this.otpRepo.save(otp);
-      throw new BadRequestException('تم تجاوز عدد المحاولات المسموحة، اطلب رمزاً جديداً');
+      throw new BadRequestException(
+        'تم تجاوز عدد المحاولات المسموحة، اطلب رمزاً جديداً',
+      );
     }
 
     const codeValid = await argon2.verify(otp.codeHash, code);
@@ -520,7 +550,10 @@ export class AuthService {
     );
   }
 
-  private async signResetToken(userId: number, tokenVersion: number): Promise<string> {
+  private async signResetToken(
+    userId: number,
+    tokenVersion: number,
+  ): Promise<string> {
     const payload: ResetTokenPayload = {
       sub: Number(userId),
       purpose: OtpPurpose.PASSWORD_RESET,
@@ -553,7 +586,11 @@ export class AuthService {
     return new Date(Date.now() + sevenDaysMs);
   }
 
-  private buildUserPayload(user: User, roles: string[], permissions: string[]): AuthUserPayload {
+  private buildUserPayload(
+    user: User,
+    roles: string[],
+    permissions: string[],
+  ): AuthUserPayload {
     return {
       id: Number(user.id),
       name: user.name,

@@ -664,7 +664,7 @@ export class BookingService {
 
   async createReceptionBooking(
     dto: CreateReceptionBookingDto,
-    currentUser: AuthenticatedUser,
+    _currentUser: AuthenticatedUser,
   ) {
     // Parse local wall-clock date+time directly — no timezone offset needed.
     // Date.UTC ensures the result is independent of Node.js process timezone.
@@ -970,7 +970,7 @@ export class BookingService {
     dto: Pick<CreateReceptionBookingDto, 'vehicleSource' | 'trainingType'>,
     startAt: Date,
     endAt: Date,
-    now: Date,
+    _now: Date,
   ) {
     // Create new booking: BOOKED + DEPOSIT_PAID immediately
     const newBooking = await em.save(Booking, {
@@ -1678,8 +1678,8 @@ export class BookingService {
     instructorId: number,
     startAt: Date,
     endAt: Date,
-    trainingType: TrainingType,
-    vehicleSource: VehicleSource,
+    _trainingType: TrainingType,
+    _vehicleSource: VehicleSource,
   ): Promise<boolean> {
     // startAt is local wall-clock (TIMESTAMP); getUTC* returns local values directly.
     const dayEnum = JS_DAY_MAP[startAt.getUTCDay()];

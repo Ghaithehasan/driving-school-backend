@@ -26,7 +26,6 @@ import { AddFuelDto } from './dto/add-fuel.dto';
 import { CreateVehicleDto } from './dto/create-vehicle.dto';
 import { FindVehiclesQueryDto } from './dto/find-vehicles-query.dto';
 import { ReturnFromMaintenanceDto } from './dto/return-from-maintenance.dto';
-import { SendToMaintenanceDto } from './dto/send-to-maintenance.dto';
 import { UpdateVehicleDto } from './dto/update-vehicle.dto';
 import { VehicleUnavailablePeriod } from './vehicle-unavailable-period.entity';
 import { Vehicle } from './vehicle.entity';
@@ -97,11 +96,11 @@ export class VehiclesService {
   async create(dto: CreateVehicleDto) {
     const vehicle = this.vehicleRepo.create({
       plateNumber: dto.plateNumber,
-      model:       dto.model ?? null,
-      color:       dto.color ?? null,
-      type:        dto.type,
-      status:      VehicleStatus.ACTIVE,
-      adminNotes:  dto.adminNotes ?? null,
+      model: dto.model ?? null,
+      color: dto.color ?? null,
+      type: dto.type,
+      status: VehicleStatus.ACTIVE,
+      adminNotes: dto.adminNotes ?? null,
     });
 
     const saved = await this.vehicleRepo.save(vehicle);
@@ -113,10 +112,11 @@ export class VehiclesService {
     if (!vehicle) throw new NotFoundException('المركبة غير موجودة');
 
     if (dto.plateNumber !== undefined) vehicle.plateNumber = dto.plateNumber;
-    if (dto.model      !== undefined) vehicle.model       = dto.model ?? null;
-    if (dto.color      !== undefined) vehicle.color       = dto.color ?? null;
-    if (dto.type       !== undefined) vehicle.type        = dto.type;
-    if (dto.adminNotes !== undefined) vehicle.adminNotes  = dto.adminNotes ?? null;
+    if (dto.model !== undefined) vehicle.model = dto.model ?? null;
+    if (dto.color !== undefined) vehicle.color = dto.color ?? null;
+    if (dto.type !== undefined) vehicle.type = dto.type;
+    if (dto.adminNotes !== undefined)
+      vehicle.adminNotes = dto.adminNotes ?? null;
 
     const saved = await this.vehicleRepo.save(vehicle);
     return this.toSummary(saved);
@@ -131,7 +131,9 @@ export class VehiclesService {
     }
 
     if (vehicle.status === VehicleStatus.INACTIVE) {
-      throw new BadRequestException('لا يمكن أرشفة مركبة في الصيانة — أرجعها للعمل أولاً');
+      throw new BadRequestException(
+        'لا يمكن أرشفة مركبة في الصيانة — أرجعها للعمل أولاً',
+      );
     }
 
     const futureBookings = await this.bookingRepo.find({
@@ -155,13 +157,16 @@ export class VehiclesService {
         }
         await em.save(Booking, booking);
 
-        await em.save(BookingCancellation, em.create(BookingCancellation, {
-          booking,
-          cancellationParty:  CancellationParty.VEHICLE,
-          cancellationReason: 'تم إيقاف السيارة عن الخدمة',
-          cancelledAt:        new Date(),
-          cancelledByUser:    null,
-        }));
+        await em.save(
+          BookingCancellation,
+          em.create(BookingCancellation, {
+            booking,
+            cancellationParty: CancellationParty.VEHICLE,
+            cancellationReason: 'تم إيقاف السيارة عن الخدمة',
+            cancelledAt: new Date(),
+            cancelledByUser: null,
+          }),
+        );
       }
     });
 
@@ -178,7 +183,7 @@ export class VehiclesService {
     }
 
     return {
-      message:           'تم أرشفة المركبة بنجاح',
+      message: 'تم أرشفة المركبة بنجاح',
       cancelledBookings: futureBookings.length,
     };
   }
@@ -192,21 +197,24 @@ export class VehiclesService {
 
     await this.dataSource.transaction(async (em) => {
       const expense = em.create(Expense, {
-        category:    ExpenseCategory.VEHICLE,
-        amount:      String(totalAmount),
+        category: ExpenseCategory.VEHICLE,
+        amount: String(totalAmount),
         expenseDate: today,
-        status:      ExpenseStatus.PAID,
-        note:        dto.note ?? null,
-        employee:    null,
+        status: ExpenseStatus.PAID,
+        note: dto.note ?? null,
+        employee: null,
       });
       const savedExpense = await em.save(Expense, expense);
 
-      await em.save(ExpenseVehicle, em.create(ExpenseVehicle, {
-        reason:  VehicleExpenseReason.GAS,
-        liters:  String(dto.liters),
-        vehicle,
-        expense: savedExpense,
-      }));
+      await em.save(
+        ExpenseVehicle,
+        em.create(ExpenseVehicle, {
+          reason: VehicleExpenseReason.GAS,
+          liters: String(dto.liters),
+          vehicle,
+          expense: savedExpense,
+        }),
+      );
     });
 
     return { message: 'تم تسجيل تعبئة الوقود وإنشاء الفاتورة بنجاح' };
@@ -217,7 +225,9 @@ export class VehiclesService {
     if (!vehicle) throw new NotFoundException('المركبة غير موجودة');
 
     if (vehicle.status !== VehicleStatus.ACTIVE) {
-      throw new BadRequestException('المركبة يجب أن تكون متاحة لإرسالها للصيانة');
+      throw new BadRequestException(
+        'المركبة يجب أن تكون متاحة لإرسالها للصيانة',
+      );
     }
 
     // الحجوزات المستقبلية المؤكدة لهذه السيارة
@@ -236,13 +246,16 @@ export class VehiclesService {
       await em.save(Vehicle, vehicle);
 
       // 2) فتح فترة صيانة
-      await em.save(VehicleUnavailablePeriod, em.create(VehicleUnavailablePeriod, {
-        startAt:    new Date(),
-        endAt:      null,
-        reasonType: VehicleUnavailableReasonType.MAINTENANCE,
-        notes:      null,
-        vehicle,
-      }));
+      await em.save(
+        VehicleUnavailablePeriod,
+        em.create(VehicleUnavailablePeriod, {
+          startAt: new Date(),
+          endAt: null,
+          reasonType: VehicleUnavailableReasonType.MAINTENANCE,
+          notes: null,
+          vehicle,
+        }),
+      );
 
       // 3) إلغاء الحجوزات المستقبلية
       for (const booking of futureBookings) {
@@ -254,13 +267,16 @@ export class VehiclesService {
         }
         await em.save(Booking, booking);
 
-        await em.save(BookingCancellation, em.create(BookingCancellation, {
-          booking,
-          cancellationParty:  CancellationParty.VEHICLE,
-          cancellationReason: 'عطل في السيارة',
-          cancelledAt:        new Date(),
-          cancelledByUser:    null,
-        }));
+        await em.save(
+          BookingCancellation,
+          em.create(BookingCancellation, {
+            booking,
+            cancellationParty: CancellationParty.VEHICLE,
+            cancellationReason: 'عطل في السيارة',
+            cancelledAt: new Date(),
+            cancelledByUser: null,
+          }),
+        );
       }
     });
 
@@ -278,12 +294,16 @@ export class VehiclesService {
     }
 
     return {
-      message:          'تم إرسال السيارة للصيانة بنجاح',
+      message: 'تم إرسال السيارة للصيانة بنجاح',
       cancelledBookings: futureBookings.length,
     };
   }
 
-  async returnFromMaintenance(id: number, dto: ReturnFromMaintenanceDto, performedByUserId: number) {
+  async returnFromMaintenance(
+    id: number,
+    dto: ReturnFromMaintenanceDto,
+    performedByUserId: number,
+  ) {
     const vehicle = await this.vehicleRepo.findOne({ where: { id } });
     if (!vehicle) throw new NotFoundException('المركبة غير موجودة');
 
@@ -293,8 +313,8 @@ export class VehiclesService {
 
     const openPeriod = await this.unavailableRepo.findOne({
       where: {
-        vehicle:    { id },
-        endAt:      IsNull(),
+        vehicle: { id },
+        endAt: IsNull(),
         reasonType: VehicleUnavailableReasonType.MAINTENANCE,
       },
     });
@@ -319,21 +339,24 @@ export class VehiclesService {
 
       if (dto.maintenanceCost > 0) {
         const expense = em.create(Expense, {
-          category:    ExpenseCategory.VEHICLE,
-          amount:      String(dto.maintenanceCost),
+          category: ExpenseCategory.VEHICLE,
+          amount: String(dto.maintenanceCost),
           expenseDate: today,
-          status:      dto.expenseStatus,
-          note:        dto.notes ?? null,
-          employee:    employee ?? null,
+          status: dto.expenseStatus,
+          note: dto.notes ?? null,
+          employee: employee ?? null,
         });
         const savedExpense = await em.save(Expense, expense);
 
-        await em.save(ExpenseVehicle, em.create(ExpenseVehicle, {
-          reason:  VehicleExpenseReason.MAINTENANCE,
-          liters:  null,
-          vehicle,
-          expense: savedExpense,
-        }));
+        await em.save(
+          ExpenseVehicle,
+          em.create(ExpenseVehicle, {
+            reason: VehicleExpenseReason.MAINTENANCE,
+            liters: null,
+            vehicle,
+            expense: savedExpense,
+          }),
+        );
       }
     });
 
@@ -342,16 +365,18 @@ export class VehiclesService {
 
   private toSummary(v: Vehicle) {
     return {
-      id:          Number(v.id),
+      id: Number(v.id),
       plateNumber: v.plateNumber,
-      model:       v.model,
-      color:       v.color,
-      type:        v.type,
-      status:      v.status,
+      model: v.model,
+      color: v.color,
+      type: v.type,
+      status: v.status,
     };
   }
 
   private getSchoolLocalDate(): string {
-    return new Date(Date.now() + SCHOOL_TZ_OFFSET_MS).toISOString().split('T')[0];
+    return new Date(Date.now() + SCHOOL_TZ_OFFSET_MS)
+      .toISOString()
+      .split('T')[0];
   }
 }

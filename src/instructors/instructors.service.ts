@@ -22,14 +22,15 @@ export class InstructorsService {
     }
 
     if (query.instructorType) {
-      qb.andWhere('instructor.instructorType = :type', { type: query.instructorType });
+      qb.andWhere('instructor.instructorType = :type', {
+        type: query.instructorType,
+      });
     }
 
     if (query.search) {
-      qb.andWhere(
-        '(user.name ILIKE :search OR user.phone ILIKE :search)',
-        { search: `%${query.search}%` },
-      );
+      qb.andWhere('(user.name ILIKE :search OR user.phone ILIKE :search)', {
+        search: `%${query.search}%`,
+      });
     }
 
     const instructors = await qb.getMany();

@@ -24,7 +24,7 @@ import { BookingService } from './booking.service';
 @Controller('reception/bookings')
 @UseGuards(PermissionGuard)
 export class ReceptionBookingController {
-  constructor(private readonly bookingService: BookingService) { }
+  constructor(private readonly bookingService: BookingService) {}
 
   /**
    * GET /reception/bookings/available-slots

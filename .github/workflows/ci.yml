@@ -14,8 +14,23 @@ permissions:
 
 jobs:
   build:
-    name: Build Nest-JS
+    name: Build NestJS
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: driving_school_test
+          POSTGRES_PASSWORD: driving_school_test
+          POSTGRES_DB: driving_school_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U driving_school_test -d driving_school_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout repository
@@ -30,5 +45,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint source code
+        run: npm run lint:check
+
+      - name: Run unit tests
+        run: npm test -- --runInBand
+
       - name: Build application
         run: npm run build
+
+      - name: Run database migrations
+        run: npm run migration:run
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: driving_school_test
+          DB_PASSWORD: driving_school_test
+          DB_NAME: driving_school_test

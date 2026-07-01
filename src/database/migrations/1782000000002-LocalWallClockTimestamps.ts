@@ -5,8 +5,12 @@ export class LocalWallClockTimestamps1782000000002 implements MigrationInterface
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     // Drop btree_gist EXCLUDE constraints (they use tstzrange which requires TIMESTAMPTZ)
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_instructor_overlap"`);
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_vehicle_overlap"`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_instructor_overlap"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_vehicle_overlap"`,
+    );
 
     // Convert booking slots from TIMESTAMPTZ (UTC) to TIMESTAMP (local wall-clock UTC+3)
     await queryRunner.query(`
@@ -57,8 +61,12 @@ export class LocalWallClockTimestamps1782000000002 implements MigrationInterface
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_vehicle_overlap"`);
-    await queryRunner.query(`ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_instructor_overlap"`);
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_vehicle_overlap"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "booking" DROP CONSTRAINT IF EXISTS "ex_booking_instructor_overlap"`,
+    );
 
     await queryRunner.query(`
       ALTER TABLE "booking"

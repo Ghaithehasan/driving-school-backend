@@ -6,9 +6,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CertificateExamResultModule } from './certificate-exam-result/certificate-exam-result.module';
 
 @Module({
-   imports: [
+  imports: [
     TypeOrmModule.forFeature([Certificate]),
-    CertificateExamResultModule,  
+    CertificateExamResultModule,
   ],
   controllers: [CertificatesController],
   providers: [CertificatesService],

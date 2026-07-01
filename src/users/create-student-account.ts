@@ -24,7 +24,9 @@ export async function createStudentAccount(
   manager: EntityManager,
   data: CreateStudentAccountData,
 ): Promise<{ user: User; student: Student }> {
-  const existing = await manager.findOne(User, { where: { phone: data.phone } });
+  const existing = await manager.findOne(User, {
+    where: { phone: data.phone },
+  });
   if (existing) throw new ConflictException('رقم الهاتف مستخدم مسبقاً');
 
   const user = await manager.save(

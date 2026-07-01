@@ -30,8 +30,10 @@ export class PermissionGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const user = request.user as AuthenticatedUser | undefined;
 
-    if (!user) throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');
-    if (!user.roles?.length) throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');
+    if (!user)
+      throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');
+    if (!user.roles?.length)
+      throw new ForbiddenException('ليس لديك صلاحية للوصول لهذا المورد');
 
     const rows: { code: string }[] = await this.rolePermissionRepo
       .createQueryBuilder('rp')

@@ -78,7 +78,7 @@ export class ShamcashService {
       senderName: match.sender_name ?? null,
       receiverName: match.receiver_name ?? null,
       occurredAt: match.occurred_at ? new Date(match.occurred_at) : null,
-      rawPayload: match as Record<string, unknown>,
+      rawPayload: match,
     };
   }
 

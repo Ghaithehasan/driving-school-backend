@@ -16,7 +16,15 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, UserRole, Role, AuthSession, AuthOtpCode, RolePermission, Permission]),
+    TypeOrmModule.forFeature([
+      User,
+      UserRole,
+      Role,
+      AuthSession,
+      AuthOtpCode,
+      RolePermission,
+      Permission,
+    ]),
     PassportModule,
     JwtModule.register({}),
   ],

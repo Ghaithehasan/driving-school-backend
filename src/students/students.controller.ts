@@ -1,4 +1,11 @@
-import { Controller, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { RequirePermissions } from '../auth/decorators/roles.decorator';
 import { PermissionGuard } from '../auth/guards/roles.guard';
 import { BookingService } from '../booking/booking.service';
