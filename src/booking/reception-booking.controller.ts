@@ -4,7 +4,9 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
+  Put,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -14,6 +16,7 @@ import { PermissionGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { AvailableSlotsQueryDto } from './dto/available-slots-query.dto';
 import { CancelBookingDto } from './dto/cancel-booking.dto';
+import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { CreateReceptionBookingDto } from './dto/create-reception-booking.dto';
 import { ListBookingsQueryDto } from './dto/list-bookings-query.dto';
 import { BookingService } from './booking.service';
@@ -65,6 +68,16 @@ export class ReceptionBookingController {
   @RequirePermissions('payments.create')
   payRemainder(@Param('id', ParseIntPipe) id: number) {
     return this.bookingService.payRemainder(id);
+  }
+
+  /** put /reception/bookings/:id/status — Manual override: COMPLETED or NO_SHOW */
+  @Put(':id/status')
+  @RequirePermissions('bookings.complete')
+  updateBookingStatus(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateBookingStatusDto,
+  ) {
+    return this.bookingService.manualUpdateBookingStatus(id, dto.status);
   }
 
   /** POST /reception/bookings/:id/cancel */

@@ -12,27 +12,30 @@ import { Employee } from '../employees/employee.entity';
 @Entity('expenses')
 export class Expense {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ type: 'enum', enum: ExpenseCategory })
-  category: ExpenseCategory;
+  category!: ExpenseCategory;
 
   @Column({ type: 'numeric', precision: 10, scale: 2 })
-  amount: string;
+  amount!: string;
 
   @Column({ name: 'expense_date', type: 'date' })
-  expenseDate: string;
+  expenseDate!: string;
 
   @Column({ type: 'enum', enum: ExpenseStatus })
-  status: ExpenseStatus;
+  status!: ExpenseStatus;
+
+  @Column({ name: 'paid_at', type: 'timestamptz', nullable: true })
+  paidAt!: Date | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  note: string | null;
+  note!: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ManyToOne(() => Employee, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'employee_id' })
-  employee: Employee | null;
+  employee!: Employee | null;
 }

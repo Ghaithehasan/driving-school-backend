@@ -11,15 +11,15 @@ import { User } from '../users/user.entity';
 @Entity('instructors')
 export class Instructor {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ type: 'enum', enum: Gender })
-  gender: Gender;
+  gender!: Gender;
 
   @Column({ name: 'instructor_type', type: 'enum', enum: InstructorType })
-  instructorType: InstructorType;
+  instructorType!: InstructorType;
 
   @OneToOne(() => User, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user!: User;
 }

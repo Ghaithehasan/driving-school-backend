@@ -8,7 +8,6 @@ import { LessonPrice } from './lesson-price.entity';
 import { Instructor } from '../instructors/instructor.entity';
 import { InstructorWeeklyAvailability } from '../instructors/instructor-weekly-availability.entity';
 import { InstructorUnavailablePeriod } from '../instructors/instructor-unavailable-period.entity';
-import { InstructorSchedulePublication } from '../instructors/instructor-schedule-publication.entity';
 import { Vehicle } from '../vehicles/vehicle.entity';
 import { VehicleUnavailablePeriod } from '../vehicles/vehicle-unavailable-period.entity';
 import { Student } from '../students/student.entity';
@@ -35,7 +34,6 @@ import { StudentBookingController } from './student-booking.controller';
       Instructor,
       InstructorWeeklyAvailability,
       InstructorUnavailablePeriod,
-      InstructorSchedulePublication,
       Vehicle,
       VehicleUnavailablePeriod,
       Student,

@@ -39,7 +39,6 @@ function createService(em: Record<string, jest.Mock>) {
     emptyRepo as never,
     emptyRepo as never,
     emptyRepo as never,
-    emptyRepo as never,
     studentRepo as never,
     emptyRepo as never,
     emptyRepo as never,

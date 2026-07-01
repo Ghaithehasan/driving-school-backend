@@ -11,21 +11,21 @@ import { Instructor } from './instructor.entity';
 @Entity('instructor_unavailable_periods')
 export class InstructorUnavailablePeriod {
   @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;
+  id!: number;
 
   @Column({ name: 'start_at', type: 'timestamp' })
-  startAt: Date;
+  startAt!: Date;
 
   @Column({ name: 'end_at', type: 'timestamp' })
-  endAt: Date;
+  endAt!: Date;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  reason: string | null;
+  reason!: string | null;
 
   @ManyToOne(() => Instructor, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'instructor_id' })
-  instructor: Instructor;
+  instructor!: Instructor;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt: Date;
+  createdAt!: Date;
 }
